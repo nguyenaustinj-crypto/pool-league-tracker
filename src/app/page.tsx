@@ -1,83 +1,57 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { calculateRoundScore } from "@/lib/scoring";
+import { createLeague } from "@/lib/actions";
 
 export default async function HomePage() {
-  const matches = await prisma.match.findMany({
-    orderBy: { date: "desc" },
-    include: {
-      homeTeam: true,
-      awayTeam: true,
-      rounds: {
-        include: {
-          pairings: { include: { homePlayer: true, awayPlayer: true } },
-        },
-      },
-    },
+  const leagues = await prisma.league.findMany({
+    orderBy: { name: "asc" },
+    include: { teams: { include: { homeMatches: true } } },
   });
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Matches</h1>
-        <Link
-          href="/matches/new"
-          className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white"
-        >
-          + New Match
-        </Link>
-      </div>
-
-      {matches.length === 0 && (
-        <p className="text-neutral-500">
-          No matches yet. Add a couple of{" "}
-          <Link href="/teams" className="underline">
-            teams
-          </Link>{" "}
-          first, then start a match.
-        </p>
-      )}
+      <h1 className="text-xl font-bold">Leagues</h1>
 
       <ul className="flex flex-col gap-3">
-        {matches.map((match) => {
-          let homeTotal = 0;
-          let awayTotal = 0;
-          for (const round of match.rounds) {
-            const homeHandicapTotal = round.pairings.reduce(
-              (sum, p) => sum + p.homePlayer.rating,
-              0
-            );
-            const awayHandicapTotal = round.pairings.reduce(
-              (sum, p) => sum + p.awayPlayer.rating,
-              0
-            );
-            const score = calculateRoundScore(round.pairings, homeHandicapTotal, awayHandicapTotal);
-            homeTotal += score.home.roundTotal;
-            awayTotal += score.away.roundTotal;
-          }
-
+        {leagues.map((league) => {
+          // Every match has exactly one home team, so counting only
+          // homeMatches (not also awayMatches) avoids double-counting.
+          const matchCount = league.teams.reduce((sum, t) => sum + t.homeMatches.length, 0);
           return (
-            <li key={match.id}>
+            <li key={league.id}>
               <Link
-                href={`/matches/${match.id}`}
+                href={`/leagues/${league.id}`}
                 className="flex items-center justify-between rounded-lg border p-4 hover:bg-neutral-50"
               >
-                <div>
-                  <div className="font-medium">
-                    {match.homeTeam.name} vs {match.awayTeam.name}
-                  </div>
-                  <div className="text-sm text-neutral-500">
-                    {new Date(match.date).toLocaleDateString()}
-                  </div>
-                </div>
-                <div className="text-lg font-bold tabular-nums">
-                  {homeTotal} – {awayTotal}
-                </div>
+                <span className="font-medium">{league.name}</span>
+                <span className="text-sm text-neutral-500">
+                  {league.teams.length} team{league.teams.length === 1 ? "" : "s"} ·{" "}
+                  {matchCount} match{matchCount === 1 ? "" : "es"}
+                </span>
               </Link>
             </li>
           );
         })}
+        {leagues.length === 0 && (
+          <p className="text-neutral-500">No leagues yet. Add your first one below.</p>
+        )}
       </ul>
+
+      <form action={createLeague} className="flex gap-2 rounded-lg border p-4">
+        <input
+          type="text"
+          name="name"
+          placeholder="League name"
+          required
+          className="flex-1 rounded-md border px-3 py-2"
+        />
+        <button
+          type="submit"
+          className="shrink-0 rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white"
+        >
+          Add League
+        </button>
+      </form>
     </div>
   );
 }

@@ -15,7 +15,9 @@ interface Team {
   players: Player[];
 }
 
-export default function NewMatchForm({ teams }: { teams: Team[] }) {
+export default function NewMatchForm({ leagueId, teams }: { leagueId: string; teams: Team[] }) {
+  const createMatchInLeague = createMatch.bind(null, leagueId);
+
   const [homeTeamId, setHomeTeamId] = useState("");
   const [awayTeamId, setAwayTeamId] = useState("");
   const [homePlayerIds, setHomePlayerIds] = useState<string[]>([]);
@@ -53,7 +55,7 @@ export default function NewMatchForm({ teams }: { teams: Team[] }) {
   }
 
   return (
-    <form action={createMatch} onSubmit={handleSubmit} className="flex flex-col gap-6">
+    <form action={createMatchInLeague} onSubmit={handleSubmit} className="flex flex-col gap-6">
       <div className="grid grid-cols-2 gap-4">
         <TeamPicker
           label="Home team"

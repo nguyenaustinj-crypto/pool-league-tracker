@@ -15,14 +15,17 @@ browser too.
 
 ## What it does
 
-1. **Teams & players** (`/teams`) — create teams and add each player with
-   their handicap.
-2. **New match** (`/matches/new`) — pick a home and away team, then pick the
-   3 players from each roster who are playing that night.
-3. **Match scoring** (`/matches/[id]`) — enter each player's Game 1 / Game 2
-   scores. The app automatically generates the 3-round round-robin pairing
-   schedule and computes each round's handicap-adjusted score live, same as
-   the paper sheet used to require by hand.
+1. **Leagues** (`/`) — create a league. Everything else lives inside one.
+2. **Teams & players** (`/leagues/[id]`) — add teams to a league, and add
+   each player with their handicap.
+3. **New match** (`/leagues/[id]/matches/new`) — pick a home and away team
+   from that league, then pick the 3 players from each roster who are
+   playing that night.
+4. **Match scoring** (`/leagues/[id]/matches/[matchId]`) — enter each
+   player's Game 1 / Game 2 scores. The app automatically generates the
+   3-round round-robin pairing schedule and computes each round's
+   handicap-adjusted score live, same as the paper sheet used to require by
+   hand.
 
 See `CLAUDE.md` for the data model and the scoring rules that were
 reverse-engineered from real filled-in score sheets (including one rule that

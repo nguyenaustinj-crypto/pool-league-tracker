@@ -13,7 +13,9 @@ A web app to replace paper-based tracking for pool leagues across multiple venue
 - No auth — this is for one family/league's own use.
 
 ## Data model (`prisma/schema.prisma`)
-Venue → Team → Player, and Match (homeTeam vs awayTeam) → Round (x3) → Pairing (one home player vs one away player, 2 games/racks each).
+League → Team → Player, and Match (homeTeam vs awayTeam, both must belong to the same league) → Round (x3) → Pairing (one home player vs one away player, 2 games/racks each). Venue exists as an optional, independent attachment on Team (not league-scoped) but has no UI yet.
+
+Routes are nested under `/leagues/[leagueId]/...` so teams and matches are always viewed/created in the context of one league; a match's two teams are validated server-side to belong to the same league.
 
 ## Scoring rules (`src/lib/scoring.ts`)
 Reverse-engineered from real filled-in copies of the paper "Bonus Score Sheet" (see the `Billardscoresheet-*` folder) and verified against real numbers from 3 separate rounds:
@@ -22,4 +24,4 @@ Reverse-engineered from real filled-in copies of the paper "Bonus Score Sheet" (
 - UNCONFIRMED: the sheet has a "Bonus over 22" rule for when a team's handicap total exceeds the league's 22 cap. Sample data never triggered a nonzero value there, so it currently contributes 0 — see the `bonusOverCap()` comment in `scoring.ts`. Confirm the real rule with the league before relying on match results near that cap.
 
 ## Status
-V1 built: team/player rosters (with handicaps) and match entry with auto-computed round-robin pairings and live score calculation, replacing the paper sheet itself. Not yet built: season standings, multi-venue scheduling, editing/deleting teams or matches.
+V1 built: leagues, team/player rosters (with handicaps) within a league, and match entry (teams restricted to the same league) with auto-computed round-robin pairings and live score calculation, replacing the paper sheet itself. Not yet built: season standings, multi-venue scheduling, editing/deleting leagues, teams, players, or matches.

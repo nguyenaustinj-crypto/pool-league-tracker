@@ -35,11 +35,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <Link href="/" className="text-base font-bold">
               🎱 Pool League
             </Link>
-            <Link href="/teams" className="ml-auto hover:underline">
-              Teams
-            </Link>
-            <Link href="/matches/new" className="hover:underline">
-              New Match
+            <Link href="/" className="ml-auto hover:underline">
+              Leagues
             </Link>
           </nav>
         </header>

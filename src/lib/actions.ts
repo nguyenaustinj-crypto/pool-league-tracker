@@ -5,12 +5,20 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { awayIndexForRound } from "@/lib/scoring";
 
-export async function createTeam(formData: FormData) {
+export async function createLeague(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return;
 
-  await prisma.team.create({ data: { name } });
-  revalidatePath("/teams");
+  await prisma.league.create({ data: { name } });
+  revalidatePath("/");
+}
+
+export async function createTeam(leagueId: string, formData: FormData) {
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return;
+
+  await prisma.team.create({ data: { name, leagueId } });
+  revalidatePath(`/leagues/${leagueId}`);
 }
 
 export async function createPlayer(teamId: string, formData: FormData) {
@@ -22,7 +30,7 @@ export async function createPlayer(teamId: string, formData: FormData) {
   revalidatePath(`/teams/${teamId}`);
 }
 
-export async function createMatch(formData: FormData) {
+export async function createMatch(leagueId: string, formData: FormData) {
   const homeTeamId = String(formData.get("homeTeamId") ?? "");
   const awayTeamId = String(formData.get("awayTeamId") ?? "");
   const homePlayerIds = formData.getAll("homePlayerIds").map(String);
@@ -36,6 +44,14 @@ export async function createMatch(formData: FormData) {
     awayPlayerIds.length !== 3
   ) {
     throw new Error("A match needs two different teams with exactly 3 players each.");
+  }
+
+  const [homeTeam, awayTeam] = await Promise.all([
+    prisma.team.findUniqueOrThrow({ where: { id: homeTeamId } }),
+    prisma.team.findUniqueOrThrow({ where: { id: awayTeamId } }),
+  ]);
+  if (homeTeam.leagueId !== leagueId || awayTeam.leagueId !== leagueId) {
+    throw new Error("Both teams must belong to this league.");
   }
 
   const match = await prisma.match.create({
@@ -56,8 +72,8 @@ export async function createMatch(formData: FormData) {
     },
   });
 
-  revalidatePath("/");
-  redirect(`/matches/${match.id}`);
+  revalidatePath(`/leagues/${leagueId}`);
+  redirect(`/leagues/${leagueId}/matches/${match.id}`);
 }
 
 export interface PairingScoreUpdate {
@@ -68,7 +84,11 @@ export interface PairingScoreUpdate {
   awayGame2: number;
 }
 
-export async function saveMatchScores(matchId: string, updates: PairingScoreUpdate[]) {
+export async function saveMatchScores(
+  leagueId: string,
+  matchId: string,
+  updates: PairingScoreUpdate[]
+) {
   await prisma.$transaction(
     updates.map((u) =>
       prisma.pairing.update({
@@ -82,5 +102,5 @@ export async function saveMatchScores(matchId: string, updates: PairingScoreUpda
       })
     )
   );
-  revalidatePath(`/matches/${matchId}`);
+  revalidatePath(`/leagues/${leagueId}/matches/${matchId}`);
 }

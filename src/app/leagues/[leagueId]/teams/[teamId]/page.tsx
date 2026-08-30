@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { createPlayer } from "@/lib/actions";
@@ -5,21 +6,32 @@ import { createPlayer } from "@/lib/actions";
 export default async function TeamPage({
   params,
 }: {
-  params: Promise<{ teamId: string }>;
+  params: Promise<{ leagueId: string; teamId: string }>;
 }) {
-  const { teamId } = await params;
+  const { leagueId, teamId } = await params;
   const team = await prisma.team.findUnique({
     where: { id: teamId },
-    include: { players: { orderBy: { name: "asc" } } },
+    include: { league: true, players: { orderBy: { name: "asc" } } },
   });
 
-  if (!team) notFound();
+  if (!team || team.leagueId !== leagueId) notFound();
 
   const createPlayerForTeam = createPlayer.bind(null, team.id);
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-xl font-bold">{team.name}</h1>
+      <div>
+        <p className="text-sm text-neutral-500">
+          <Link href="/" className="underline">
+            Leagues
+          </Link>{" "}
+          /{" "}
+          <Link href={`/leagues/${leagueId}`} className="underline">
+            {team.league.name}
+          </Link>
+        </p>
+        <h1 className="text-xl font-bold">{team.name}</h1>
+      </div>
 
       <ul className="flex flex-col gap-2">
         {team.players.map((player) => (
@@ -54,7 +66,7 @@ export default async function TeamPage({
         />
         <button
           type="submit"
-          className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white"
+          className="shrink-0 rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white"
         >
           Add
         </button>

@@ -25,11 +25,13 @@ interface RoundData {
 const emptyScores = { homeGame1: 0, homeGame2: 0, awayGame1: 0, awayGame2: 0 };
 
 export default function MatchScoreSheet({
+  leagueId,
   matchId,
   homeTeamName,
   awayTeamName,
   rounds,
 }: {
+  leagueId: string;
   matchId: string;
   homeTeamName: string;
   awayTeamName: string;
@@ -80,7 +82,7 @@ export default function MatchScoreSheet({
       round.pairings.map((p) => ({ pairingId: p.id, ...(scores[p.id] ?? emptyScores) }))
     );
     startTransition(async () => {
-      await saveMatchScores(matchId, updates);
+      await saveMatchScores(leagueId, matchId, updates);
       setSaved(true);
     });
   }

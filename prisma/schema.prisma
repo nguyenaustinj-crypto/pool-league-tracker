@@ -10,6 +10,12 @@ datasource db {
   provider = "sqlite"
 }
 
+model League {
+  id    String @id @default(cuid())
+  name  String
+  teams Team[]
+}
+
 model Venue {
   id      String  @id @default(cuid())
   name    String
@@ -20,6 +26,8 @@ model Venue {
 model Team {
   id          String   @id @default(cuid())
   name        String
+  league      League   @relation(fields: [leagueId], references: [id])
+  leagueId    String
   venue       Venue?   @relation(fields: [venueId], references: [id])
   venueId     String?
   players     Player[]

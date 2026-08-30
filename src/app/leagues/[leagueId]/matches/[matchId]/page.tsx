@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import MatchScoreSheet from "./MatchScoreSheet";
@@ -5,13 +6,13 @@ import MatchScoreSheet from "./MatchScoreSheet";
 export default async function MatchPage({
   params,
 }: {
-  params: Promise<{ matchId: string }>;
+  params: Promise<{ leagueId: string; matchId: string }>;
 }) {
-  const { matchId } = await params;
+  const { leagueId, matchId } = await params;
   const match = await prisma.match.findUnique({
     where: { id: matchId },
     include: {
-      homeTeam: true,
+      homeTeam: { include: { league: true } },
       awayTeam: true,
       rounds: {
         orderBy: { roundNumber: "asc" },
@@ -24,16 +25,26 @@ export default async function MatchPage({
     },
   });
 
-  if (!match) notFound();
+  if (!match || match.homeTeam.leagueId !== leagueId) notFound();
 
   return (
     <div className="flex flex-col gap-4">
+      <p className="text-sm text-neutral-500">
+        <Link href="/" className="underline">
+          Leagues
+        </Link>{" "}
+        /{" "}
+        <Link href={`/leagues/${leagueId}`} className="underline">
+          {match.homeTeam.league.name}
+        </Link>
+      </p>
       <h1 className="text-xl font-bold">
         {match.homeTeam.name} vs {match.awayTeam.name}
       </h1>
       <p className="text-sm text-neutral-500">{new Date(match.date).toLocaleDateString()}</p>
 
       <MatchScoreSheet
+        leagueId={leagueId}
         matchId={match.id}
         homeTeamName={match.homeTeam.name}
         awayTeamName={match.awayTeam.name}
