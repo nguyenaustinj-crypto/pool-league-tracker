@@ -13,51 +13,40 @@ export async function createLeague(formData: FormData) {
   revalidatePath("/");
 }
 
-export async function createTeam(leagueId: string, formData: FormData) {
-  const name = String(formData.get("name") ?? "").trim();
-  if (!name) return;
-
-  await prisma.team.create({ data: { name, leagueId } });
-  revalidatePath(`/leagues/${leagueId}`);
-}
-
-export async function createPlayer(teamId: string, formData: FormData) {
+export async function createPlayer(leagueId: string, formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const rating = Number(formData.get("rating"));
   if (!name || Number.isNaN(rating)) return;
 
-  await prisma.player.create({ data: { name, rating, teamId } });
-  revalidatePath(`/teams/${teamId}`);
+  await prisma.player.create({ data: { name, rating, leagueId } });
+  revalidatePath(`/leagues/${leagueId}`);
 }
 
 export async function createMatch(leagueId: string, formData: FormData) {
-  const homeTeamId = String(formData.get("homeTeamId") ?? "");
-  const awayTeamId = String(formData.get("awayTeamId") ?? "");
+  const homeLabel = String(formData.get("homeLabel") ?? "").trim() || null;
+  const awayLabel = String(formData.get("awayLabel") ?? "").trim() || null;
   const homePlayerIds = formData.getAll("homePlayerIds").map(String);
   const awayPlayerIds = formData.getAll("awayPlayerIds").map(String);
 
-  if (
-    !homeTeamId ||
-    !awayTeamId ||
-    homeTeamId === awayTeamId ||
-    homePlayerIds.length !== 3 ||
-    awayPlayerIds.length !== 3
-  ) {
-    throw new Error("A match needs two different teams with exactly 3 players each.");
+  if (homePlayerIds.length !== 3 || awayPlayerIds.length !== 3) {
+    throw new Error("Pick exactly 3 players for each side.");
+  }
+  if (homePlayerIds.some((id) => awayPlayerIds.includes(id))) {
+    throw new Error("A player can't be on both sides of the same match.");
   }
 
-  const [homeTeam, awayTeam] = await Promise.all([
-    prisma.team.findUniqueOrThrow({ where: { id: homeTeamId } }),
-    prisma.team.findUniqueOrThrow({ where: { id: awayTeamId } }),
-  ]);
-  if (homeTeam.leagueId !== leagueId || awayTeam.leagueId !== leagueId) {
-    throw new Error("Both teams must belong to this league.");
+  const players = await prisma.player.findMany({
+    where: { id: { in: [...homePlayerIds, ...awayPlayerIds] } },
+  });
+  if (players.length !== 6 || players.some((p) => p.leagueId !== leagueId)) {
+    throw new Error("All 6 players must belong to this league.");
   }
 
   const match = await prisma.match.create({
     data: {
-      homeTeamId,
-      awayTeamId,
+      leagueId,
+      homeLabel,
+      awayLabel,
       rounds: {
         create: [0, 1, 2].map((roundIndex) => ({
           roundNumber: roundIndex + 1,

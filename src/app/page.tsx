@@ -5,7 +5,7 @@ import { createLeague } from "@/lib/actions";
 export default async function HomePage() {
   const leagues = await prisma.league.findMany({
     orderBy: { name: "asc" },
-    include: { teams: { include: { homeMatches: true } } },
+    include: { players: true, matches: true },
   });
 
   return (
@@ -13,25 +13,20 @@ export default async function HomePage() {
       <h1 className="text-xl font-bold">Leagues</h1>
 
       <ul className="flex flex-col gap-3">
-        {leagues.map((league) => {
-          // Every match has exactly one home team, so counting only
-          // homeMatches (not also awayMatches) avoids double-counting.
-          const matchCount = league.teams.reduce((sum, t) => sum + t.homeMatches.length, 0);
-          return (
-            <li key={league.id}>
-              <Link
-                href={`/leagues/${league.id}`}
-                className="flex items-center justify-between rounded-lg border p-4 hover:bg-neutral-50"
-              >
-                <span className="font-medium">{league.name}</span>
-                <span className="text-sm text-neutral-500">
-                  {league.teams.length} team{league.teams.length === 1 ? "" : "s"} ·{" "}
-                  {matchCount} match{matchCount === 1 ? "" : "es"}
-                </span>
-              </Link>
-            </li>
-          );
-        })}
+        {leagues.map((league) => (
+          <li key={league.id}>
+            <Link
+              href={`/leagues/${league.id}`}
+              className="flex items-center justify-between rounded-lg border p-4 hover:bg-neutral-50"
+            >
+              <span className="font-medium">{league.name}</span>
+              <span className="text-sm text-neutral-500">
+                {league.players.length} player{league.players.length === 1 ? "" : "s"} ·{" "}
+                {league.matches.length} match{league.matches.length === 1 ? "" : "es"}
+              </span>
+            </Link>
+          </li>
+        ))}
         {leagues.length === 0 && (
           <p className="text-neutral-500">No leagues yet. Add your first one below.</p>
         )}

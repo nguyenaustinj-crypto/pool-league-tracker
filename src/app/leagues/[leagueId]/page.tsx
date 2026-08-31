@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { createTeam } from "@/lib/actions";
+import { createPlayer } from "@/lib/actions";
 import { calculateRoundScore } from "@/lib/scoring";
+import { sideLabel } from "@/lib/format";
 
 export default async function LeaguePage({
   params,
@@ -12,21 +13,19 @@ export default async function LeaguePage({
   const { leagueId } = await params;
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
-    include: { teams: { orderBy: { name: "asc" }, include: { players: true } } },
+    include: { players: { orderBy: { name: "asc" } } },
   });
   if (!league) notFound();
 
   const matches = await prisma.match.findMany({
-    where: { homeTeam: { leagueId } },
+    where: { leagueId },
     orderBy: { date: "desc" },
     include: {
-      homeTeam: true,
-      awayTeam: true,
       rounds: { include: { pairings: { include: { homePlayer: true, awayPlayer: true } } } },
     },
   });
 
-  const createTeamInLeague = createTeam.bind(null, league.id);
+  const createPlayerInLeague = createPlayer.bind(null, league.id);
 
   return (
     <div className="flex flex-col gap-8">
@@ -40,40 +39,42 @@ export default async function LeaguePage({
       </div>
 
       <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold">Teams</h2>
-        </div>
+        <h2 className="font-semibold">Players</h2>
         <ul className="flex flex-col gap-2">
-          {league.teams.map((team) => (
-            <li key={team.id}>
-              <Link
-                href={`/leagues/${league.id}/teams/${team.id}`}
-                className="flex items-center justify-between rounded-lg border p-3 hover:bg-neutral-50"
-              >
-                <span className="font-medium">{team.name}</span>
-                <span className="text-sm text-neutral-500">
-                  {team.players.length} player{team.players.length === 1 ? "" : "s"}
-                </span>
-              </Link>
+          {league.players.map((player) => (
+            <li
+              key={player.id}
+              className="flex items-center justify-between rounded-lg border p-3"
+            >
+              <span>{player.name}</span>
+              <span className="text-sm text-neutral-500">Handicap {player.rating}</span>
             </li>
           ))}
-          {league.teams.length === 0 && (
-            <p className="text-neutral-500">No teams yet. Add the first one below.</p>
+          {league.players.length === 0 && (
+            <p className="text-neutral-500">No players yet. Add the first one below.</p>
           )}
         </ul>
-        <form action={createTeamInLeague} className="flex gap-2 rounded-lg border p-3">
+        <form action={createPlayerInLeague} className="flex gap-2 rounded-lg border p-3">
           <input
             type="text"
             name="name"
-            placeholder="Team name"
+            placeholder="Player name"
             required
             className="flex-1 rounded-md border px-3 py-2"
+          />
+          <input
+            type="number"
+            name="rating"
+            placeholder="Handicap"
+            step="0.1"
+            required
+            className="w-28 rounded-md border px-3 py-2"
           />
           <button
             type="submit"
             className="shrink-0 rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white"
           >
-            Add Team
+            Add
           </button>
         </form>
       </section>
@@ -92,6 +93,8 @@ export default async function LeaguePage({
           {matches.map((match) => {
             let homeTotal = 0;
             let awayTotal = 0;
+            const homePlayerNames = new Set<string>();
+            const awayPlayerNames = new Set<string>();
             for (const round of match.rounds) {
               const homeHandicapTotal = round.pairings.reduce(
                 (sum, p) => sum + p.homePlayer.rating,
@@ -104,6 +107,10 @@ export default async function LeaguePage({
               const score = calculateRoundScore(round.pairings, homeHandicapTotal, awayHandicapTotal);
               homeTotal += score.home.roundTotal;
               awayTotal += score.away.roundTotal;
+              for (const p of round.pairings) {
+                homePlayerNames.add(p.homePlayer.name);
+                awayPlayerNames.add(p.awayPlayer.name);
+              }
             }
             return (
               <li key={match.id}>
@@ -113,7 +120,8 @@ export default async function LeaguePage({
                 >
                   <div>
                     <div className="font-medium">
-                      {match.homeTeam.name} vs {match.awayTeam.name}
+                      {sideLabel(match.homeLabel, [...homePlayerNames])} vs{" "}
+                      {sideLabel(match.awayLabel, [...awayPlayerNames])}
                     </div>
                     <div className="text-sm text-neutral-500">
                       {new Date(match.date).toLocaleDateString()}

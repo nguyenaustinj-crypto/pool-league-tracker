@@ -11,48 +11,34 @@ datasource db {
 }
 
 model League {
-  id    String @id @default(cuid())
-  name  String
-  teams Team[]
-}
-
-model Venue {
-  id      String  @id @default(cuid())
+  id      String   @id @default(cuid())
   name    String
-  address String?
-  teams   Team[]
-}
-
-model Team {
-  id          String   @id @default(cuid())
-  name        String
-  league      League   @relation(fields: [leagueId], references: [id])
-  leagueId    String
-  venue       Venue?   @relation(fields: [venueId], references: [id])
-  venueId     String?
-  players     Player[]
-  homeMatches Match[]  @relation("HomeTeam")
-  awayMatches Match[]  @relation("AwayTeam")
+  players Player[]
+  matches Match[]
 }
 
 model Player {
-  id     String @id @default(cuid())
-  name   String
-  rating Float
-  team   Team   @relation(fields: [teamId], references: [id])
-  teamId String
+  id       String @id @default(cuid())
+  name     String
+  rating   Float
+  league   League @relation(fields: [leagueId], references: [id])
+  leagueId String
 
   homePairings Pairing[] @relation("HomePlayer")
   awayPairings Pairing[] @relation("AwayPlayer")
 }
 
+// A single match sheet: a "home" side and an "away" side, each 3 players
+// picked from the league's player pool for this match only. homeLabel/
+// awayLabel mirror the paper sheet's blank "(Home) Team Name" / "Team Name"
+// fields -- free text, not linked to any persistent team.
 model Match {
   id         String   @id @default(cuid())
   date       DateTime @default(now())
-  homeTeam   Team     @relation("HomeTeam", fields: [homeTeamId], references: [id])
-  homeTeamId String
-  awayTeam   Team     @relation("AwayTeam", fields: [awayTeamId], references: [id])
-  awayTeamId String
+  league     League   @relation(fields: [leagueId], references: [id])
+  leagueId   String
+  homeLabel  String?
+  awayLabel  String?
   rounds     Round[]
 }
 

@@ -1,16 +1,7 @@
 -- CreateTable
-CREATE TABLE "Venue" (
+CREATE TABLE "League" (
     "id" TEXT NOT NULL PRIMARY KEY,
-    "name" TEXT NOT NULL,
-    "address" TEXT
-);
-
--- CreateTable
-CREATE TABLE "Team" (
-    "id" TEXT NOT NULL PRIMARY KEY,
-    "name" TEXT NOT NULL,
-    "venueId" TEXT,
-    CONSTRAINT "Team_venueId_fkey" FOREIGN KEY ("venueId") REFERENCES "Venue" ("id") ON DELETE SET NULL ON UPDATE CASCADE
+    "name" TEXT NOT NULL
 );
 
 -- CreateTable
@@ -18,18 +9,18 @@ CREATE TABLE "Player" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "name" TEXT NOT NULL,
     "rating" REAL NOT NULL,
-    "teamId" TEXT NOT NULL,
-    CONSTRAINT "Player_teamId_fkey" FOREIGN KEY ("teamId") REFERENCES "Team" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    "leagueId" TEXT NOT NULL,
+    CONSTRAINT "Player_leagueId_fkey" FOREIGN KEY ("leagueId") REFERENCES "League" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
 -- CreateTable
 CREATE TABLE "Match" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "date" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "homeTeamId" TEXT NOT NULL,
-    "awayTeamId" TEXT NOT NULL,
-    CONSTRAINT "Match_homeTeamId_fkey" FOREIGN KEY ("homeTeamId") REFERENCES "Team" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT "Match_awayTeamId_fkey" FOREIGN KEY ("awayTeamId") REFERENCES "Team" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    "leagueId" TEXT NOT NULL,
+    "homeLabel" TEXT,
+    "awayLabel" TEXT,
+    CONSTRAINT "Match_leagueId_fkey" FOREIGN KEY ("leagueId") REFERENCES "League" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
 -- CreateTable

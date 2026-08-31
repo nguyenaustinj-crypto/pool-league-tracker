@@ -16,11 +16,14 @@ browser too.
 ## What it does
 
 1. **Leagues** (`/`) — create a league. Everything else lives inside one.
-2. **Teams & players** (`/leagues/[id]`) — add teams to a league, and add
-   each player with their handicap.
-3. **New match** (`/leagues/[id]/matches/new`) — pick a home and away team
-   from that league, then pick the 3 players from each roster who are
-   playing that night.
+2. **Players** (`/leagues/[id]`) — add each player to the league with their
+   handicap. No separate "team" to set up first — players just belong to
+   the league.
+3. **New match** (`/leagues/[id]/matches/new`) — pick any 3 players vs any
+   other 3 players from that league's pool for tonight's match, with an
+   optional team-name label for each side (matches the paper sheet's blank
+   team-name field; if you skip it, the side is just identified by its 3
+   players).
 4. **Match scoring** (`/leagues/[id]/matches/[matchId]`) — enter each
    player's Game 1 / Game 2 scores. The app automatically generates the
    3-round round-robin pairing schedule and computes each round's
