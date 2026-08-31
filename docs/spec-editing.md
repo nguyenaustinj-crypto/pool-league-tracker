@@ -1,6 +1,6 @@
 # Spec: Editing
 
-Status: **design only, not implemented**.
+Status: **implemented.**
 
 Scope note: earlier drafts of this spec also covered future-scheduled
 matches, tournament brackets, and a persistent `Team` entity. All three are

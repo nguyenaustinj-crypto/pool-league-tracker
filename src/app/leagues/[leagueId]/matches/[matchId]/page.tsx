@@ -48,9 +48,17 @@ export default async function MatchPage({
           {match.league.name}
         </Link>
       </p>
-      <h1 className="text-xl font-bold">
-        {homeTeamName} vs {awayTeamName}
-      </h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold">
+          {homeTeamName} vs {awayTeamName}
+        </h1>
+        <Link
+          href={`/leagues/${leagueId}/matches/${matchId}/edit`}
+          className="text-sm text-neutral-500 underline"
+        >
+          Edit
+        </Link>
+      </div>
       <p className="text-sm text-neutral-500">{new Date(match.date).toLocaleDateString()}</p>
 
       <MatchScoreSheet

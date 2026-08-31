@@ -21,7 +21,7 @@ model Player {
   id       String @id @default(cuid())
   name     String
   rating   Float
-  league   League @relation(fields: [leagueId], references: [id])
+  league   League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   leagueId String
 
   homePairings Pairing[] @relation("HomePlayer")
@@ -35,7 +35,7 @@ model Player {
 model Match {
   id         String   @id @default(cuid())
   date       DateTime @default(now())
-  league     League   @relation(fields: [leagueId], references: [id])
+  league     League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   leagueId   String
   homeLabel  String?
   awayLabel  String?
@@ -44,7 +44,7 @@ model Match {
 
 model Round {
   id          String    @id @default(cuid())
-  match       Match     @relation(fields: [matchId], references: [id])
+  match       Match     @relation(fields: [matchId], references: [id], onDelete: Cascade)
   matchId     String
   roundNumber Int
   pairings    Pairing[]
@@ -53,7 +53,7 @@ model Round {
 // One home player vs. one away player within a round, playing two games (racks).
 model Pairing {
   id           String @id @default(cuid())
-  round        Round  @relation(fields: [roundId], references: [id])
+  round        Round  @relation(fields: [roundId], references: [id], onDelete: Cascade)
   roundId      String
   homePlayer   Player @relation("HomePlayer", fields: [homePlayerId], references: [id])
   homePlayerId String

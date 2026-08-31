@@ -35,7 +35,12 @@ export default async function LeaguePage({
             Leagues
           </Link>
         </p>
-        <h1 className="text-xl font-bold">{league.name}</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-bold">{league.name}</h1>
+          <Link href={`/leagues/${league.id}/edit`} className="text-sm text-neutral-500 underline">
+            Edit League
+          </Link>
+        </div>
       </div>
 
       <section className="flex flex-col gap-3">
@@ -47,7 +52,15 @@ export default async function LeaguePage({
               className="flex items-center justify-between rounded-lg border p-3"
             >
               <span>{player.name}</span>
-              <span className="text-sm text-neutral-500">Handicap {player.rating}</span>
+              <span className="flex items-center gap-3 text-sm text-neutral-500">
+                Handicap {player.rating}
+                <Link
+                  href={`/leagues/${league.id}/players/${player.id}/edit`}
+                  className="underline"
+                >
+                  Edit
+                </Link>
+              </span>
             </li>
           ))}
           {league.players.length === 0 && (
@@ -113,10 +126,13 @@ export default async function LeaguePage({
               }
             }
             return (
-              <li key={match.id}>
+              <li
+                key={match.id}
+                className="flex items-center justify-between rounded-lg border p-3"
+              >
                 <Link
                   href={`/leagues/${league.id}/matches/${match.id}`}
-                  className="flex items-center justify-between rounded-lg border p-3 hover:bg-neutral-50"
+                  className="flex flex-1 items-center justify-between hover:opacity-70"
                 >
                   <div>
                     <div className="font-medium">
@@ -130,6 +146,12 @@ export default async function LeaguePage({
                   <div className="text-lg font-bold tabular-nums">
                     {homeTotal} – {awayTotal}
                   </div>
+                </Link>
+                <Link
+                  href={`/leagues/${league.id}/matches/${match.id}/edit`}
+                  className="ml-4 shrink-0 text-sm text-neutral-500 underline"
+                >
+                  Edit
                 </Link>
               </li>
             );
