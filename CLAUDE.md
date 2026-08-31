@@ -9,8 +9,12 @@ A web app to replace paper-based tracking for pool leagues across multiple venue
 
 ## Stack
 - Next.js (App Router, TypeScript, Tailwind) — one deployable app, works well on a phone browser now, can be wrapped for a native app later.
-- SQLite via Prisma (driver adapter: `@prisma/adapter-better-sqlite3`, required by Prisma 7's client generator — see `src/lib/prisma.ts`).
+- Postgres via Prisma (driver adapter: `@prisma/adapter-pg`, required by Prisma 7's client generator — see `src/lib/prisma.ts`). Was SQLite locally; switched to Postgres (Prisma Postgres, via Vercel's storage integration) once deployment needed a database that survives serverless hosting's ephemeral filesystem.
+- `prisma.config.ts` reads `DIRECT_URL ?? DATABASE_URL` for CLI/migration commands; the app itself reads `DATABASE_URL` via the pg adapter. `npm run build` runs `prisma migrate deploy` before `next build`, so migrations apply automatically on every Vercel deploy — no manual migration step, and no one ever needs to paste the database password anywhere.
+- Hosting: Vercel, connected to the `nguyenaustinj-crypto/pool-league-tracker` GitHub repo. Database: Prisma Postgres (single database — no separate dev/prod split yet, see caveat below).
 - No auth — this is for one family/league's own use.
+
+**Caveat on the shared database:** local dev and the deployed app currently point at the *same* Prisma Postgres database (via the same `DATABASE_URL`). There's no separate dev database yet. Any local testing that writes data should clean up after itself (delete what you created) so it doesn't show up for real users of the deployed app.
 
 ## Data model (`prisma/schema.prisma`)
 League → Player (a flat roster, no persistent Team entity), and Match (belongs to a League) → Round (x3) → Pairing (one home player vs one away player, 2 games/racks each). A match's two sides are picked fresh each time from the league's player pool at match-creation time — 3 players per side, validated server-side to belong to the same league and not overlap. Each side optionally has a free-text `homeLabel`/`awayLabel` (mirrors the paper sheet's blank team-name field); when absent, the UI falls back to listing that side's player names (`src/lib/format.ts`).
@@ -26,7 +30,7 @@ Reverse-engineered from real filled-in copies of the paper "Bonus Score Sheet" (
 - UNCONFIRMED: the sheet has a "Bonus over 22" rule for when a team's handicap total exceeds the league's 22 cap. Sample data never triggered a nonzero value there, so it currently contributes 0 — see the `bonusOverCap()` comment in `scoring.ts`. Confirm the real rule with the league before relying on match results near that cap.
 
 ## Status
-V1 built: leagues, a flat player roster (with handicaps) per league, match entry (pick 3-vs-3 from the league's player pool, with an optional team-name label per side) with auto-computed round-robin pairings and live score calculation, and a full edit/delete pass on League/Player/Match per `docs/spec-editing.md` (implemented). Editing a match's lineup regenerates its pairings and warns before erasing any scores already entered; deleting a player is blocked while they're part of an existing match. Not yet built: season standings; persistent/named teams; hosting/deployment (still local-only, `npm run dev`).
+V1 built: leagues, a flat player roster (with handicaps) per league, match entry (pick 3-vs-3 from the league's player pool, with an optional team-name label per side) with auto-computed round-robin pairings and live score calculation, a full edit/delete pass on League/Player/Match per `docs/spec-editing.md` (implemented), and Postgres/Vercel deployment. Editing a match's lineup regenerates its pairings and warns before erasing any scores already entered; deleting a player is blocked while they're part of an existing match. Not yet built: season standings; persistent/named teams; a separate dev database (see Stack caveat above).
 
 ## Future ideas (not started — get the core app solid first)
 - **Persistent, named Team.** Cut from the model on purpose (see Data model above) to keep setup simple — no team to create/manage before you can just add people and start a match. Bring it back only as an optional grouping layer if lineups turn out to be the same 3 people together often enough that re-picking them every match gets tedious.
