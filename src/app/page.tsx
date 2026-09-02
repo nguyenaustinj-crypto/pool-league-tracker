@@ -32,7 +32,7 @@ export default async function HomePage() {
         )}
       </ul>
 
-      <form action={createLeague} className="flex gap-2 rounded-lg border p-4">
+      <form action={createLeague} className="flex flex-col gap-2 rounded-lg border p-4 sm:flex-row">
         <input
           type="text"
           name="name"

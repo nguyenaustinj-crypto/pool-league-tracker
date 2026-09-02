@@ -31,7 +31,7 @@ export default async function EditLeaguePage({
         <h1 className="text-xl font-bold">Edit League</h1>
       </div>
 
-      <form action={updateThisLeague} className="flex gap-2 rounded-lg border p-4">
+      <form action={updateThisLeague} className="flex flex-col gap-2 rounded-lg border p-4 sm:flex-row">
         <input
           type="text"
           name="name"

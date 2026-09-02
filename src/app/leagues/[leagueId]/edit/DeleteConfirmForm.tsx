@@ -13,7 +13,7 @@ export default function DeleteConfirmForm({
   const matches = value === expectedName;
 
   return (
-    <form action={action} className="flex gap-2">
+    <form action={action} className="flex flex-col gap-2 sm:flex-row">
       <input
         type="text"
         name="confirmName"

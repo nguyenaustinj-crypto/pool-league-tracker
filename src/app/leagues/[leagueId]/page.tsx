@@ -67,7 +67,10 @@ export default async function LeaguePage({
             <p className="text-neutral-500">No players yet. Add the first one below.</p>
           )}
         </ul>
-        <form action={createPlayerInLeague} className="flex gap-2 rounded-lg border p-3">
+        <form
+          action={createPlayerInLeague}
+          className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row"
+        >
           <input
             type="text"
             name="name"
@@ -81,7 +84,7 @@ export default async function LeaguePage({
             placeholder="Handicap"
             step="0.1"
             required
-            className="w-28 rounded-md border px-3 py-2"
+            className="rounded-md border px-3 py-2 sm:w-28"
           />
           <button
             type="submit"
@@ -128,11 +131,11 @@ export default async function LeaguePage({
             return (
               <li
                 key={match.id}
-                className="flex items-center justify-between rounded-lg border p-3"
+                className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between"
               >
                 <Link
                   href={`/leagues/${league.id}/matches/${match.id}`}
-                  className="flex flex-1 items-center justify-between hover:opacity-70"
+                  className="flex flex-1 flex-col gap-1 hover:opacity-70 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div>
                     <div className="font-medium">
@@ -149,7 +152,7 @@ export default async function LeaguePage({
                 </Link>
                 <Link
                   href={`/leagues/${league.id}/matches/${match.id}/edit`}
-                  className="ml-4 shrink-0 text-sm text-neutral-500 underline"
+                  className="self-end text-sm text-neutral-500 underline sm:ml-4 sm:shrink-0 sm:self-auto"
                 >
                   Edit
                 </Link>
