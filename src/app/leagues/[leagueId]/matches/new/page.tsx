@@ -17,12 +17,13 @@ export default async function NewMatchPage({
     orderBy: { name: "asc" },
   });
 
-  if (players.length < 6) {
+  if (players.length < 2) {
     return (
       <div className="flex flex-col gap-4">
         <h1 className="text-xl font-bold">New Match</h1>
         <p className="text-neutral-500">
-          {league.name} needs at least 6 players (3 per side) before starting a match.{" "}
+          {league.name} needs at least 2 players (1 per side, for a 1-table match) before
+          starting a match.{" "}
           <Link href={`/leagues/${league.id}`} className="underline">
             Add players
           </Link>

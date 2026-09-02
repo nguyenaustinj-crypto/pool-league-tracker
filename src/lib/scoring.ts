@@ -18,13 +18,14 @@ export function pairingAwayTotal(p: PairingScore): number {
 }
 
 /**
- * Round-robin pairing schedule for a 3-a-side round: across 3 rounds, each
- * home player faces each away player exactly once.
- * Round r (0-indexed): home[i] plays away[(i + r) % 3].
- * Verified against the real rotation used on the paper sheet.
+ * Round-robin pairing schedule for an N-a-side round (N = number of
+ * tables): across N rounds, each home player faces each away player
+ * exactly once. Round r (0-indexed): home[i] plays away[(i + r) % N].
+ * Verified against the real rotation used on the paper sheet, for the
+ * N=3 case that sheet happened to use.
  */
-export function awayIndexForRound(homeIndex: number, roundIndex: number): number {
-  return (homeIndex + roundIndex) % 3;
+export function awayIndexForRound(homeIndex: number, roundIndex: number, tableCount: number): number {
+  return (homeIndex + roundIndex) % tableCount;
 }
 
 export interface RoundTeamScore {

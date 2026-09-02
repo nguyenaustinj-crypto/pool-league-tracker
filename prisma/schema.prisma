@@ -51,13 +51,19 @@ model Round {
 }
 
 // One home player vs. one away player within a round, playing two games (racks).
+// homePlayer/awayPlayer cascade so deleting a League (which cascades to its
+// Players) doesn't hit a foreign key violation from Pairings still
+// referencing them. The app-level guard against deleting an individual
+// player who's in an active match (see deletePlayer in actions.ts) is what
+// actually protects that case -- this cascade only matters once everything
+// upstream (the whole League) is already being torn down.
 model Pairing {
   id           String @id @default(cuid())
   round        Round  @relation(fields: [roundId], references: [id], onDelete: Cascade)
   roundId      String
-  homePlayer   Player @relation("HomePlayer", fields: [homePlayerId], references: [id])
+  homePlayer   Player @relation("HomePlayer", fields: [homePlayerId], references: [id], onDelete: Cascade)
   homePlayerId String
-  awayPlayer   Player @relation("AwayPlayer", fields: [awayPlayerId], references: [id])
+  awayPlayer   Player @relation("AwayPlayer", fields: [awayPlayerId], references: [id], onDelete: Cascade)
   awayPlayerId String
   homeGame1    Float  @default(0)
   homeGame2    Float  @default(0)

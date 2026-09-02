@@ -70,27 +70,28 @@ export async function deletePlayer(leagueId: string, playerId: string) {
 }
 
 async function validateLineup(leagueId: string, homePlayerIds: string[], awayPlayerIds: string[]) {
-  if (homePlayerIds.length !== 3 || awayPlayerIds.length !== 3) {
-    throw new Error("Pick exactly 3 players for each side.");
+  const tableCount = homePlayerIds.length;
+  if (tableCount === 0 || awayPlayerIds.length !== tableCount) {
+    throw new Error("Pick one player per table for each side.");
   }
-  if (homePlayerIds.some((id) => awayPlayerIds.includes(id))) {
-    throw new Error("A player can't be on both sides of the same match.");
+  const allIds = [...homePlayerIds, ...awayPlayerIds];
+  if (new Set(allIds).size !== allIds.length) {
+    throw new Error("Each player can only be picked for one table, on one side.");
   }
-  const players = await prisma.player.findMany({
-    where: { id: { in: [...homePlayerIds, ...awayPlayerIds] } },
-  });
-  if (players.length !== 6 || players.some((p) => p.leagueId !== leagueId)) {
-    throw new Error("All 6 players must belong to this league.");
+  const players = await prisma.player.findMany({ where: { id: { in: allIds } } });
+  if (players.length !== allIds.length || players.some((p) => p.leagueId !== leagueId)) {
+    throw new Error("All players must belong to this league.");
   }
 }
 
 function roundsCreateData(homePlayerIds: string[], awayPlayerIds: string[]) {
-  return [0, 1, 2].map((roundIndex) => ({
+  const tableCount = homePlayerIds.length;
+  return Array.from({ length: tableCount }, (_, roundIndex) => ({
     roundNumber: roundIndex + 1,
     pairings: {
       create: homePlayerIds.map((homePlayerId, homeIndex) => ({
         homePlayerId,
-        awayPlayerId: awayPlayerIds[awayIndexForRound(homeIndex, roundIndex)],
+        awayPlayerId: awayPlayerIds[awayIndexForRound(homeIndex, roundIndex, tableCount)],
       })),
     },
   }));
