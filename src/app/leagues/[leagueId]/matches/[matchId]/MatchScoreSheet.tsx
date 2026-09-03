@@ -196,8 +196,9 @@ function RoundSummary({
       <div className="font-semibold">Round total: {team.roundTotal}</div>
       {overCap && (
         <div className="mt-1 text-xs text-amber-600">
-          Over the {HANDICAP_CAP} handicap cap — the &quot;bonus over cap&quot; rule isn&apos;t
-          confirmed yet, so it isn&apos;t applied here.
+          Over the {HANDICAP_CAP} handicap cap — the bonus-over-cap rule from the league&apos;s
+          written rules is applied above, though it hasn&apos;t been checked against a real
+          example where it fired in practice.
         </div>
       )}
     </div>
