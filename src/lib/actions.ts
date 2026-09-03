@@ -35,13 +35,46 @@ export async function deleteLeague(leagueId: string, formData: FormData) {
   redirect("/");
 }
 
-export async function createPlayer(leagueId: string, formData: FormData) {
+export async function createTeam(leagueId: string, formData: FormData) {
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return;
+
+  await prisma.team.create({ data: { name, leagueId } });
+  revalidatePath(`/leagues/${leagueId}`);
+}
+
+export async function updateTeam(leagueId: string, teamId: string, formData: FormData) {
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return;
+
+  await prisma.team.update({ where: { id: teamId }, data: { name } });
+  revalidatePath(`/leagues/${leagueId}`);
+  revalidatePath(`/leagues/${leagueId}/teams/${teamId}`);
+  redirect(`/leagues/${leagueId}/teams/${teamId}`);
+}
+
+export async function deleteTeam(leagueId: string, teamId: string) {
+  const matchCount = await prisma.match.count({
+    where: { OR: [{ homeTeamId: teamId }, { awayTeamId: teamId }] },
+  });
+  if (matchCount > 0) {
+    throw new Error(
+      "This team has played in an existing match — that match must be deleted first."
+    );
+  }
+
+  await prisma.team.delete({ where: { id: teamId } });
+  revalidatePath(`/leagues/${leagueId}`);
+  redirect(`/leagues/${leagueId}`);
+}
+
+export async function createPlayer(leagueId: string, teamId: string, formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const rating = Number(formData.get("rating"));
   if (!name || Number.isNaN(rating)) return;
 
-  await prisma.player.create({ data: { name, rating, leagueId } });
-  revalidatePath(`/leagues/${leagueId}`);
+  await prisma.player.create({ data: { name, rating, teamId } });
+  revalidatePath(`/leagues/${leagueId}/teams/${teamId}`);
 }
 
 export async function updatePlayer(leagueId: string, playerId: string, formData: FormData) {
@@ -49,12 +82,13 @@ export async function updatePlayer(leagueId: string, playerId: string, formData:
   const rating = Number(formData.get("rating"));
   if (!name || Number.isNaN(rating)) return;
 
-  await prisma.player.update({ where: { id: playerId }, data: { name, rating } });
-  revalidatePath(`/leagues/${leagueId}`);
-  redirect(`/leagues/${leagueId}`);
+  const player = await prisma.player.update({ where: { id: playerId }, data: { name, rating } });
+  revalidatePath(`/leagues/${leagueId}/teams/${player.teamId}`);
+  redirect(`/leagues/${leagueId}/teams/${player.teamId}`);
 }
 
 export async function deletePlayer(leagueId: string, playerId: string) {
+  const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId } });
   const pairingCount = await prisma.pairing.count({
     where: { OR: [{ homePlayerId: playerId }, { awayPlayerId: playerId }] },
   });
@@ -65,22 +99,44 @@ export async function deletePlayer(leagueId: string, playerId: string) {
   }
 
   await prisma.player.delete({ where: { id: playerId } });
-  revalidatePath(`/leagues/${leagueId}`);
-  redirect(`/leagues/${leagueId}`);
+  revalidatePath(`/leagues/${leagueId}/teams/${player.teamId}`);
+  redirect(`/leagues/${leagueId}/teams/${player.teamId}`);
 }
 
-async function validateLineup(leagueId: string, homePlayerIds: string[], awayPlayerIds: string[]) {
+async function validateLineup(
+  leagueId: string,
+  homeTeamId: string,
+  awayTeamId: string,
+  homePlayerIds: string[],
+  awayPlayerIds: string[]
+) {
+  if (!homeTeamId || !awayTeamId || homeTeamId === awayTeamId) {
+    throw new Error("Pick two different teams for this match.");
+  }
   const tableCount = homePlayerIds.length;
   if (tableCount === 0 || awayPlayerIds.length !== tableCount) {
     throw new Error("Pick one player per table for each side.");
   }
-  const allIds = [...homePlayerIds, ...awayPlayerIds];
-  if (new Set(allIds).size !== allIds.length) {
-    throw new Error("Each player can only be picked for one table, on one side.");
+  if (new Set(homePlayerIds).size !== tableCount || new Set(awayPlayerIds).size !== tableCount) {
+    throw new Error("Each player can only be picked for one table on their side.");
   }
+
+  const teams = await prisma.team.findMany({ where: { id: { in: [homeTeamId, awayTeamId] } } });
+  if (teams.length !== 2 || teams.some((t) => t.leagueId !== leagueId)) {
+    throw new Error("Both teams must belong to this league.");
+  }
+
+  const allIds = [...homePlayerIds, ...awayPlayerIds];
   const players = await prisma.player.findMany({ where: { id: { in: allIds } } });
-  if (players.length !== allIds.length || players.some((p) => p.leagueId !== leagueId)) {
-    throw new Error("All players must belong to this league.");
+  if (players.length !== allIds.length) {
+    throw new Error("All players must exist.");
+  }
+  const homeSet = new Set(homePlayerIds);
+  for (const player of players) {
+    const expectedTeamId = homeSet.has(player.id) ? homeTeamId : awayTeamId;
+    if (player.teamId !== expectedTeamId) {
+      throw new Error(`${player.name} isn't on that side's team.`);
+    }
   }
 }
 
@@ -98,18 +154,18 @@ function roundsCreateData(homePlayerIds: string[], awayPlayerIds: string[]) {
 }
 
 export async function createMatch(leagueId: string, formData: FormData) {
-  const homeLabel = String(formData.get("homeLabel") ?? "").trim() || null;
-  const awayLabel = String(formData.get("awayLabel") ?? "").trim() || null;
+  const homeTeamId = String(formData.get("homeTeamId") ?? "");
+  const awayTeamId = String(formData.get("awayTeamId") ?? "");
   const homePlayerIds = formData.getAll("homePlayerIds").map(String);
   const awayPlayerIds = formData.getAll("awayPlayerIds").map(String);
 
-  await validateLineup(leagueId, homePlayerIds, awayPlayerIds);
+  await validateLineup(leagueId, homeTeamId, awayTeamId, homePlayerIds, awayPlayerIds);
 
   const match = await prisma.match.create({
     data: {
       leagueId,
-      homeLabel,
-      awayLabel,
+      homeTeamId,
+      awayTeamId,
       rounds: { create: roundsCreateData(homePlayerIds, awayPlayerIds) },
     },
   });
@@ -124,16 +180,19 @@ function sortedIds(ids: string[]) {
 
 export async function updateMatch(leagueId: string, matchId: string, formData: FormData) {
   const dateValue = String(formData.get("date") ?? "");
-  const homeLabel = String(formData.get("homeLabel") ?? "").trim() || null;
-  const awayLabel = String(formData.get("awayLabel") ?? "").trim() || null;
+  const homeTeamId = String(formData.get("homeTeamId") ?? "");
+  const awayTeamId = String(formData.get("awayTeamId") ?? "");
   const homePlayerIds = formData.getAll("homePlayerIds").map(String);
   const awayPlayerIds = formData.getAll("awayPlayerIds").map(String);
 
-  await validateLineup(leagueId, homePlayerIds, awayPlayerIds);
+  await validateLineup(leagueId, homeTeamId, awayTeamId, homePlayerIds, awayPlayerIds);
+
+  const currentMatch = await prisma.match.findUniqueOrThrow({ where: { id: matchId } });
 
   // The edit form always submits a full lineup (pre-checked with the
   // current one), so only regenerate Rounds/Pairings -- wiping any scores
-  // entered so far -- if the lineup actually changed from what's saved.
+  // entered so far -- if the teams or lineup actually changed from what's
+  // saved.
   const currentRound = await prisma.round.findFirst({
     where: { matchId, roundNumber: 1 },
     include: { pairings: true },
@@ -141,6 +200,8 @@ export async function updateMatch(leagueId: string, matchId: string, formData: F
   const currentHomeIds = currentRound?.pairings.map((p) => p.homePlayerId) ?? [];
   const currentAwayIds = currentRound?.pairings.map((p) => p.awayPlayerId) ?? [];
   const lineupChanged =
+    homeTeamId !== currentMatch.homeTeamId ||
+    awayTeamId !== currentMatch.awayTeamId ||
     sortedIds(homePlayerIds) !== sortedIds(currentHomeIds) ||
     sortedIds(awayPlayerIds) !== sortedIds(currentAwayIds);
 
@@ -154,8 +215,8 @@ export async function updateMatch(leagueId: string, matchId: string, formData: F
     where: { id: matchId },
     data: {
       ...(dateValue ? { date: new Date(dateValue) } : {}),
-      homeLabel,
-      awayLabel,
+      homeTeamId,
+      awayTeamId,
       ...(lineupChanged ? { rounds: { create: roundsCreateData(homePlayerIds, awayPlayerIds) } } : {}),
     },
   });
@@ -195,7 +256,11 @@ export async function saveMatchScores(
           awayGame2: u.awayGame2,
         },
       })
-    )
+    ),
+    // Prisma Postgres is a remote connection with real round-trip latency;
+    // the 2s/5s defaults for acquiring/running a transaction are too tight
+    // for a multi-table batch update over it.
+    { maxWait: 10_000, timeout: 20_000 }
   );
   revalidatePath(`/leagues/${leagueId}/matches/${matchId}`);
 }

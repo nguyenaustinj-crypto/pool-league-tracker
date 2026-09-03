@@ -11,9 +11,9 @@ export default async function EditPlayerPage({
   const { leagueId, playerId } = await params;
   const player = await prisma.player.findUnique({
     where: { id: playerId },
-    include: { league: true },
+    include: { team: { include: { league: true } } },
   });
-  if (!player || player.leagueId !== leagueId) notFound();
+  if (!player || player.team.leagueId !== leagueId) notFound();
 
   const pairingCount = await prisma.pairing.count({
     where: { OR: [{ homePlayerId: playerId }, { awayPlayerId: playerId }] },
@@ -31,7 +31,11 @@ export default async function EditPlayerPage({
           </Link>{" "}
           /{" "}
           <Link href={`/leagues/${leagueId}`} className="underline">
-            {player.league.name}
+            {player.team.league.name}
+          </Link>{" "}
+          /{" "}
+          <Link href={`/leagues/${leagueId}/teams/${player.teamId}`} className="underline">
+            {player.team.name}
           </Link>
         </p>
         <h1 className="text-xl font-bold">Edit Player</h1>

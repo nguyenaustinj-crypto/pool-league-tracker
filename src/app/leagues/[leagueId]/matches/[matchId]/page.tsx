@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { sideLabel } from "@/lib/format";
 import MatchScoreSheet from "./MatchScoreSheet";
 
 export default async function MatchPage({
@@ -14,6 +13,8 @@ export default async function MatchPage({
     where: { id: matchId },
     include: {
       league: true,
+      homeTeam: true,
+      awayTeam: true,
       rounds: {
         orderBy: { roundNumber: "asc" },
         include: {
@@ -27,15 +28,8 @@ export default async function MatchPage({
 
   if (!match || match.leagueId !== leagueId) notFound();
 
-  const firstRound = match.rounds[0];
-  const homeTeamName = sideLabel(
-    match.homeLabel,
-    firstRound ? firstRound.pairings.map((p) => p.homePlayer.name) : []
-  );
-  const awayTeamName = sideLabel(
-    match.awayLabel,
-    firstRound ? firstRound.pairings.map((p) => p.awayPlayer.name) : []
-  );
+  const homeTeamName = match.homeTeam.name;
+  const awayTeamName = match.awayTeam.name;
 
   return (
     <div className="flex flex-col gap-4">

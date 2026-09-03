@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { deleteMatch } from "@/lib/actions";
-import { sideLabel } from "@/lib/format";
 import MatchEditForm from "./MatchEditForm";
 
 export default async function EditMatchPage({
@@ -15,6 +14,8 @@ export default async function EditMatchPage({
     where: { id: matchId },
     include: {
       league: true,
+      homeTeam: true,
+      awayTeam: true,
       rounds: {
         orderBy: { roundNumber: "asc" },
         include: { pairings: { include: { homePlayer: true, awayPlayer: true } } },
@@ -23,15 +24,16 @@ export default async function EditMatchPage({
   });
   if (!match || match.leagueId !== leagueId) notFound();
 
-  const players = await prisma.player.findMany({
+  const teams = await prisma.team.findMany({
     where: { leagueId },
     orderBy: { name: "asc" },
+    include: { players: { orderBy: { name: "asc" } } },
   });
 
   const firstRound = match.rounds[0];
   const currentHomePlayerIds = firstRound?.pairings.map((p) => p.homePlayerId) ?? [];
   const currentAwayPlayerIds = firstRound?.pairings.map((p) => p.awayPlayerId) ?? [];
-  const matchTitle = `${sideLabel(match.homeLabel, firstRound?.pairings.map((p) => p.homePlayer.name) ?? [])} vs ${sideLabel(match.awayLabel, firstRound?.pairings.map((p) => p.awayPlayer.name) ?? [])}`;
+  const matchTitle = `${match.homeTeam.name} vs ${match.awayTeam.name}`;
   const hasScores = match.rounds.some((r) =>
     r.pairings.some((p) => p.homeGame1 || p.homeGame2 || p.awayGame1 || p.awayGame2)
   );
@@ -60,10 +62,10 @@ export default async function EditMatchPage({
       <MatchEditForm
         leagueId={leagueId}
         matchId={matchId}
-        players={players}
+        teams={teams}
         date={match.date.toISOString().slice(0, 10)}
-        homeLabel={match.homeLabel ?? ""}
-        awayLabel={match.awayLabel ?? ""}
+        currentHomeTeamId={match.homeTeamId}
+        currentAwayTeamId={match.awayTeamId}
         currentHomePlayerIds={currentHomePlayerIds}
         currentAwayPlayerIds={currentAwayPlayerIds}
         hasScores={hasScores}

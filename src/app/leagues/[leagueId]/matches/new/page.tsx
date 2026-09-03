@@ -12,20 +12,21 @@ export default async function NewMatchPage({
   const league = await prisma.league.findUnique({ where: { id: leagueId } });
   if (!league) notFound();
 
-  const players = await prisma.player.findMany({
+  const teams = await prisma.team.findMany({
     where: { leagueId },
     orderBy: { name: "asc" },
+    include: { players: { orderBy: { name: "asc" } } },
   });
 
-  if (players.length < 2) {
+  const eligibleTeams = teams.filter((t) => t.players.length > 0);
+  if (eligibleTeams.length < 2) {
     return (
       <div className="flex flex-col gap-4">
         <h1 className="text-xl font-bold">New Match</h1>
         <p className="text-neutral-500">
-          {league.name} needs at least 2 players (1 per side, for a 1-table match) before
-          starting a match.{" "}
+          {league.name} needs at least 2 teams with a player on each before starting a match.{" "}
           <Link href={`/leagues/${league.id}`} className="underline">
-            Add players
+            Add teams and players
           </Link>
           .
         </p>
@@ -45,7 +46,7 @@ export default async function NewMatchPage({
         </Link>
       </p>
       <h1 className="text-xl font-bold">New Match</h1>
-      <NewMatchForm leagueId={league.id} players={players} />
+      <NewMatchForm leagueId={league.id} teams={teams} />
     </div>
   );
 }

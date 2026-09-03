@@ -13,32 +13,46 @@ datasource db {
 model League {
   id      String   @id @default(cuid())
   name    String
-  players Player[]
+  teams   Team[]
   matches Match[]
 }
 
+// A persistent, named team within a league. Every Player belongs to exactly
+// one Team (see Player below) -- a match's two sides are two of a league's
+// Teams, and only players on that Team can be picked for that side.
+model Team {
+  id          String   @id @default(cuid())
+  name        String
+  league      League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  leagueId    String
+  players     Player[]
+  homeMatches Match[]  @relation("HomeTeam")
+  awayMatches Match[]  @relation("AwayTeam")
+}
+
 model Player {
-  id       String @id @default(cuid())
-  name     String
-  rating   Float
-  league   League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  leagueId String
+  id     String @id @default(cuid())
+  name   String
+  rating Float
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamId String
 
   homePairings Pairing[] @relation("HomePlayer")
   awayPairings Pairing[] @relation("AwayPlayer")
 }
 
-// A single match sheet: a "home" side and an "away" side, each 3 players
-// picked from the league's player pool for this match only. homeLabel/
-// awayLabel mirror the paper sheet's blank "(Home) Team Name" / "Team Name"
-// fields -- free text, not linked to any persistent team.
+// A single match sheet: a "home" Team and an "away" Team, each fielding one
+// player per table for this match (players must belong to the matching
+// side's Team -- validated in createMatch/updateMatch).
 model Match {
   id         String   @id @default(cuid())
   date       DateTime @default(now())
   league     League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   leagueId   String
-  homeLabel  String?
-  awayLabel  String?
+  homeTeam   Team     @relation("HomeTeam", fields: [homeTeamId], references: [id], onDelete: Cascade)
+  homeTeamId String
+  awayTeam   Team     @relation("AwayTeam", fields: [awayTeamId], references: [id], onDelete: Cascade)
+  awayTeamId String
   rounds     Round[]
 }
 
@@ -52,11 +66,12 @@ model Round {
 
 // One home player vs. one away player within a round, playing two games (racks).
 // homePlayer/awayPlayer cascade so deleting a League (which cascades to its
-// Players) doesn't hit a foreign key violation from Pairings still
-// referencing them. The app-level guard against deleting an individual
-// player who's in an active match (see deletePlayer in actions.ts) is what
-// actually protects that case -- this cascade only matters once everything
-// upstream (the whole League) is already being torn down.
+// Teams, which cascade to their Players) doesn't hit a foreign key violation
+// from Pairings still referencing them. The app-level guard against deleting
+// an individual player who's in an active match (see deletePlayer in
+// actions.ts) is what actually protects that case -- this cascade only
+// matters once everything upstream (the whole League) is already being torn
+// down.
 model Pairing {
   id           String @id @default(cuid())
   round        Round  @relation(fields: [roundId], references: [id], onDelete: Cascade)

@@ -5,7 +5,7 @@ import { createLeague } from "@/lib/actions";
 export default async function HomePage() {
   const leagues = await prisma.league.findMany({
     orderBy: { name: "asc" },
-    include: { players: true, matches: true },
+    include: { teams: true, matches: true },
   });
 
   return (
@@ -21,7 +21,7 @@ export default async function HomePage() {
             >
               <span className="font-medium">{league.name}</span>
               <span className="text-sm text-neutral-500">
-                {league.players.length} player{league.players.length === 1 ? "" : "s"} ·{" "}
+                {league.teams.length} team{league.teams.length === 1 ? "" : "s"} ·{" "}
                 {league.matches.length} match{league.matches.length === 1 ? "" : "es"}
               </span>
             </Link>
