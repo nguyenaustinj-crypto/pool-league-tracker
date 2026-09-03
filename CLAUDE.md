@@ -14,6 +14,8 @@ A web app to replace paper-based tracking for pool leagues across multiple venue
 - Hosting: Vercel, connected to the `nguyenaustinj-crypto/pool-league-tracker` GitHub repo. Database: Prisma Postgres (single database — no separate dev/prod split yet, see caveat below).
 - No auth — this is for one family/league's own use.
 
+**Temporary: repo is public.** Vercel's Hobby plan refuses to build a commit pushed by a GitHub account that isn't a team member on a *private* repo (a second family member, Jamey, pushes directly to `master` too). Made public (2026-09-02) as the free/immediate fix rather than upgrading to Pro. Revisit once the app has real users/data: either upgrade to Vercel Pro and add him as a real team member (keeps the repo private), or accept staying public long-term — the code has no secrets in it (DB credentials live only in Vercel env vars and local `.env`, never committed), so public-ness is a visibility tradeoff, not a security one.
+
 **Caveat on the shared database:** local dev and the deployed app currently point at the *same* Prisma Postgres database (via the same `DATABASE_URL`). There's no separate dev database yet. Any local testing that writes data should clean up after itself (delete what you created) so it doesn't show up for real users of the deployed app.
 
 ## Data model (`prisma/schema.prisma`)
