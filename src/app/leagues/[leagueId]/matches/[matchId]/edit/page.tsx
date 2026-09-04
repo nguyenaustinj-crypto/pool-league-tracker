@@ -48,7 +48,7 @@ export default async function EditMatchPage({
             Leagues
           </Link>{" "}
           /{" "}
-          <Link href={`/leagues/${leagueId}`} className="underline">
+          <Link href={`/leagues/${leagueId}/matches`} className="underline">
             {match.league.name}
           </Link>{" "}
           /{" "}

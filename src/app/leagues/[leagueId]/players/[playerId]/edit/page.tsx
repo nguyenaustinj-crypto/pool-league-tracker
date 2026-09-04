@@ -30,7 +30,7 @@ export default async function EditPlayerPage({
             Leagues
           </Link>{" "}
           /{" "}
-          <Link href={`/leagues/${leagueId}`} className="underline">
+          <Link href={`/leagues/${leagueId}/teams`} className="underline">
             {player.team.league.name}
           </Link>{" "}
           /{" "}
