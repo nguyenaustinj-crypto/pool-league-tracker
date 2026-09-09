@@ -153,8 +153,9 @@ export default function MatchEditForm({
 
       {hasScores && (
         <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-800">
-          This match already has scores entered. Changing either team or the lineup below will
-          erase all of them and start the match over.
+          This match already has scores entered. Changing the team, lineup, or table count keeps
+          the score for any pairing that lands in the same spot again (Round 1 always does) and
+          only clears the ones that no longer match up.
         </p>
       )}
 
@@ -205,7 +206,7 @@ export default function MatchEditForm({
         disabled={maxTables === 0}
         className="rounded-md bg-neutral-900 px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
       >
-        {hasScores && lineupChanged ? "Save (erases current scores)" : "Save"}
+        {hasScores && lineupChanged ? "Save (may clear some scores)" : "Save"}
       </button>
     </form>
   );

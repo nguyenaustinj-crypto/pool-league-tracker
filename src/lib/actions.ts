@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { awayIndexForRound } from "@/lib/scoring";
+import { awayIndexForRound, type PairingScore } from "@/lib/scoring";
 
 export async function createLeague(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
@@ -20,6 +20,8 @@ export async function updateLeague(leagueId: string, formData: FormData) {
   await prisma.league.update({ where: { id: leagueId }, data: { name } });
   revalidatePath("/");
   revalidatePath(`/leagues/${leagueId}`);
+  revalidatePath(`/leagues/${leagueId}/teams`);
+  revalidatePath(`/leagues/${leagueId}/matches`);
   redirect(`/leagues/${leagueId}`);
 }
 
@@ -41,6 +43,7 @@ export async function createTeam(leagueId: string, formData: FormData) {
 
   await prisma.team.create({ data: { name, leagueId } });
   revalidatePath(`/leagues/${leagueId}`);
+  revalidatePath(`/leagues/${leagueId}/teams`);
 }
 
 export async function updateTeam(leagueId: string, teamId: string, formData: FormData) {
@@ -49,6 +52,7 @@ export async function updateTeam(leagueId: string, teamId: string, formData: For
 
   await prisma.team.update({ where: { id: teamId }, data: { name } });
   revalidatePath(`/leagues/${leagueId}`);
+  revalidatePath(`/leagues/${leagueId}/teams`);
   revalidatePath(`/leagues/${leagueId}/teams/${teamId}`);
   redirect(`/leagues/${leagueId}/teams/${teamId}`);
 }
@@ -65,7 +69,8 @@ export async function deleteTeam(leagueId: string, teamId: string) {
 
   await prisma.team.delete({ where: { id: teamId } });
   revalidatePath(`/leagues/${leagueId}`);
-  redirect(`/leagues/${leagueId}`);
+  revalidatePath(`/leagues/${leagueId}/teams`);
+  redirect(`/leagues/${leagueId}/teams`);
 }
 
 export async function createPlayer(leagueId: string, teamId: string, formData: FormData) {
@@ -74,6 +79,7 @@ export async function createPlayer(leagueId: string, teamId: string, formData: F
   if (!name || Number.isNaN(rating)) return;
 
   await prisma.player.create({ data: { name, rating, teamId } });
+  revalidatePath(`/leagues/${leagueId}/teams`);
   revalidatePath(`/leagues/${leagueId}/teams/${teamId}`);
 }
 
@@ -140,17 +146,40 @@ async function validateLineup(
   }
 }
 
-function roundsCreateData(homePlayerIds: string[], awayPlayerIds: string[]) {
+// Keyed by `${roundNumber}:${homePlayerId}:${awayPlayerId}` so a table-count
+// or lineup change on a match that already has scores can carry forward the
+// scores for any pairing that lands in the same spot again, instead of
+// wiping the whole match. Round 1 pairings (home[i] vs away[i]) are always
+// stable across a table-count change; later rounds are stable only where the
+// round-robin rotation happens to still line up.
+type PreservedScores = Map<string, PairingScore>;
+
+function pairingKey(roundNumber: number, homePlayerId: string, awayPlayerId: string) {
+  return `${roundNumber}:${homePlayerId}:${awayPlayerId}`;
+}
+
+function roundsCreateData(
+  homePlayerIds: string[],
+  awayPlayerIds: string[],
+  preserved?: PreservedScores
+) {
   const tableCount = homePlayerIds.length;
-  return Array.from({ length: tableCount }, (_, roundIndex) => ({
-    roundNumber: roundIndex + 1,
-    pairings: {
-      create: homePlayerIds.map((homePlayerId, homeIndex) => ({
-        homePlayerId,
-        awayPlayerId: awayPlayerIds[awayIndexForRound(homeIndex, roundIndex, tableCount)],
-      })),
-    },
-  }));
+  return Array.from({ length: tableCount }, (_, roundIndex) => {
+    const roundNumber = roundIndex + 1;
+    return {
+      roundNumber,
+      pairings: {
+        create: homePlayerIds.map((homePlayerId, homeIndex) => {
+          const awayPlayerId = awayPlayerIds[awayIndexForRound(homeIndex, roundIndex, tableCount)];
+          return {
+            homePlayerId,
+            awayPlayerId,
+            ...preserved?.get(pairingKey(roundNumber, homePlayerId, awayPlayerId)),
+          };
+        }),
+      },
+    };
+  });
 }
 
 export async function createMatch(leagueId: string, formData: FormData) {
@@ -171,6 +200,7 @@ export async function createMatch(leagueId: string, formData: FormData) {
   });
 
   revalidatePath(`/leagues/${leagueId}`);
+  revalidatePath(`/leagues/${leagueId}/matches`);
   redirect(`/leagues/${leagueId}/matches/${match.id}`);
 }
 
@@ -190,15 +220,15 @@ export async function updateMatch(leagueId: string, matchId: string, formData: F
   const currentMatch = await prisma.match.findUniqueOrThrow({ where: { id: matchId } });
 
   // The edit form always submits a full lineup (pre-checked with the
-  // current one), so only regenerate Rounds/Pairings -- wiping any scores
-  // entered so far -- if the teams or lineup actually changed from what's
-  // saved.
-  const currentRound = await prisma.round.findFirst({
-    where: { matchId, roundNumber: 1 },
+  // current one), so only regenerate Rounds/Pairings if the teams, lineup,
+  // or table count actually changed from what's saved.
+  const currentRounds = await prisma.round.findMany({
+    where: { matchId },
     include: { pairings: true },
   });
-  const currentHomeIds = currentRound?.pairings.map((p) => p.homePlayerId) ?? [];
-  const currentAwayIds = currentRound?.pairings.map((p) => p.awayPlayerId) ?? [];
+  const firstRound = currentRounds.find((r) => r.roundNumber === 1);
+  const currentHomeIds = firstRound?.pairings.map((p) => p.homePlayerId) ?? [];
+  const currentAwayIds = firstRound?.pairings.map((p) => p.awayPlayerId) ?? [];
   const lineupChanged =
     homeTeamId !== currentMatch.homeTeamId ||
     awayTeamId !== currentMatch.awayTeamId ||
@@ -206,22 +236,49 @@ export async function updateMatch(leagueId: string, matchId: string, formData: F
     sortedIds(awayPlayerIds) !== sortedIds(currentAwayIds);
 
   if (lineupChanged) {
-    // Cascades to the old rounds' pairings, erasing any scores entered so
-    // far. The edit form warns about this before submitting.
+    // Regenerating Rounds/Pairings from scratch would normally wipe any
+    // scores entered so far -- e.g. when the table count changes mid-match.
+    // Carry forward the score for any pairing that lands in the same
+    // round/home-player/away-player spot in the new schedule, and only
+    // leave blank the pairings that genuinely don't exist anymore.
+    const preserved: PreservedScores = new Map();
+    for (const round of currentRounds) {
+      for (const pairing of round.pairings) {
+        preserved.set(pairingKey(round.roundNumber, pairing.homePlayerId, pairing.awayPlayerId), {
+          homeGame1: pairing.homeGame1,
+          homeGame2: pairing.homeGame2,
+          awayGame1: pairing.awayGame1,
+          awayGame2: pairing.awayGame2,
+        });
+      }
+    }
+
+    // Cascades to the old rounds' pairings; the new ones are created in the
+    // same update below with any preserved scores carried over.
     await prisma.round.deleteMany({ where: { matchId } });
+
+    await prisma.match.update({
+      where: { id: matchId },
+      data: {
+        ...(dateValue ? { date: new Date(dateValue) } : {}),
+        homeTeamId,
+        awayTeamId,
+        rounds: { create: roundsCreateData(homePlayerIds, awayPlayerIds, preserved) },
+      },
+    });
+  } else {
+    await prisma.match.update({
+      where: { id: matchId },
+      data: {
+        ...(dateValue ? { date: new Date(dateValue) } : {}),
+        homeTeamId,
+        awayTeamId,
+      },
+    });
   }
 
-  await prisma.match.update({
-    where: { id: matchId },
-    data: {
-      ...(dateValue ? { date: new Date(dateValue) } : {}),
-      homeTeamId,
-      awayTeamId,
-      ...(lineupChanged ? { rounds: { create: roundsCreateData(homePlayerIds, awayPlayerIds) } } : {}),
-    },
-  });
-
   revalidatePath(`/leagues/${leagueId}`);
+  revalidatePath(`/leagues/${leagueId}/matches`);
   revalidatePath(`/leagues/${leagueId}/matches/${matchId}`);
   redirect(`/leagues/${leagueId}/matches/${matchId}`);
 }
@@ -229,7 +286,8 @@ export async function updateMatch(leagueId: string, matchId: string, formData: F
 export async function deleteMatch(leagueId: string, matchId: string) {
   await prisma.match.delete({ where: { id: matchId } });
   revalidatePath(`/leagues/${leagueId}`);
-  redirect(`/leagues/${leagueId}`);
+  revalidatePath(`/leagues/${leagueId}/matches`);
+  redirect(`/leagues/${leagueId}/matches`);
 }
 
 export interface PairingScoreUpdate {
@@ -262,5 +320,7 @@ export async function saveMatchScores(
     // for a multi-table batch update over it.
     { maxWait: 10_000, timeout: 20_000 }
   );
+  revalidatePath(`/leagues/${leagueId}`);
+  revalidatePath(`/leagues/${leagueId}/matches`);
   revalidatePath(`/leagues/${leagueId}/matches/${matchId}`);
 }

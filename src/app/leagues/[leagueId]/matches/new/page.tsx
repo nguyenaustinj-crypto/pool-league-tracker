@@ -25,7 +25,7 @@ export default async function NewMatchPage({
         <h1 className="text-xl font-bold">New Match</h1>
         <p className="text-neutral-500">
           {league.name} needs at least 2 teams with a player on each before starting a match.{" "}
-          <Link href={`/leagues/${league.id}`} className="underline">
+          <Link href={`/leagues/${league.id}/teams`} className="underline">
             Add teams and players
           </Link>
           .
@@ -41,7 +41,7 @@ export default async function NewMatchPage({
           Leagues
         </Link>{" "}
         /{" "}
-        <Link href={`/leagues/${league.id}`} className="underline">
+        <Link href={`/leagues/${league.id}/matches`} className="underline">
           {league.name}
         </Link>
       </p>

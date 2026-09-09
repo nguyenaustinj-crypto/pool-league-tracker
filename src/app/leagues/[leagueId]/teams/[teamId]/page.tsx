@@ -31,7 +31,7 @@ export default async function TeamPage({
             Leagues
           </Link>{" "}
           /{" "}
-          <Link href={`/leagues/${leagueId}`} className="underline">
+          <Link href={`/leagues/${leagueId}/teams`} className="underline">
             {team.league.name}
           </Link>
         </p>
