@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    env:
+      # `prisma generate` only reads the schema -- it never opens a
+      # connection -- but prisma.config.ts expects the variable to exist.
+      # A throwaway value keeps CI from ever touching the real database.
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # The generated Prisma client is gitignored, so it has to be built
+      # before anything type-checks against it.
+      - run: npx prisma generate
+
+      - run: npm run lint
+
+      - run: npm run typecheck
+
+      - run: npm test
+
+# Deliberately no `npm run build` here: that script runs `prisma migrate
+# deploy`, which would apply migrations to the real production database.
+# Vercel already runs the full build on every push, and a failed build there
+# just means the previous deployment stays live -- so the build is covered
+# without CI needing production credentials.

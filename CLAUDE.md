@@ -36,6 +36,13 @@ Reverse-engineered from real filled-in copies of the paper "Bonus Score Sheet" (
 ## League rules & source documents (`docs/league-rules/`)
 Real documents from "The Islands Billiard Club" (provided 2026-09-02): the full written league rules (roster size 3-6, one substitution per match, forfeit/dispute/coaching rules, champion = most round wins), a season's results/standings/leaderboards, and two draft schedules for the next season. See `docs/league-rules/README.md` for the transcribed rules and a list of structural gaps between what's in these documents and what the app currently models (venues, team captains, alternates vs. regular players, a pre-planned season schedule, ERO/point leaderboards) — not built yet, beyond the handicap-bonus formula and standings below.
 
+## Tests & CI
+`npm test` (Vitest) covers the two pure-logic modules that decide real league results: `src/lib/scoring.test.ts` and `src/lib/standings.test.ts`. These pin the actual hand-verified numbers from the source documents — the paper sheet's real played round, the written rules' worked example (23.2 vs 24.7 → bonus 5), the round-robin rotation property for any table count, and the round-wins/half-point-tie standings rules. **If you change the scoring or standings math, expect these to fail: update the expectation and the formula together, deliberately.** One test deliberately pins the known rules-vs-sheet discrepancy (rules say +3, the real sheet recorded +2) so it can't be silently "fixed" in one direction.
+
+Other scripts: `npm run typecheck` (runs `next typegen` first, since `LayoutProps` and friends only exist after Next generates route types) and `npm run lint`.
+
+`.github/workflows/ci.yml` runs generate → lint → typecheck → test on every push and PR. It deliberately does **not** run `npm run build`, because that script runs `prisma migrate deploy` against the real production database. Vercel already runs the full build on push, and a failed build there just leaves the previous deployment live.
+
 ## Standings (`src/lib/standings.ts`)
 Per rule #12, the league's champion is whoever has the most **round wins** across the season, not match wins -- so standings tally every round of every match independently (a match with N tables has N independent round outcomes), with a tied round counting as half a win and half a loss for both teams (footnote #2). Points = the sum of each round's total (score subtotal + handicap bonus) across the season. Computed live from a league's Matches on the league page -- there's no separate "season" entity yet, so this is all-time across everything a League has ever recorded, not scoped to a season boundary.
 
