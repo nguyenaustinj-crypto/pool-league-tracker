@@ -23,21 +23,17 @@ structural findings are searchable/readable without re-extracting them.
 2. Official ACS 8-ball rules. 1 point per pocketed ball, 3 points for the
    8-ball. Winner gets 10 points; loser gets 1 point per ball they pocketed.
    Handicaps are set/tracked by the league director to 1 decimal place.
-   **Handicap bonus formula** (this is the "Bonus over 22" line the app
-   could never previously confirm — now implemented in `src/lib/scoring.ts`):
-   - Base handicap = the two teams' handicap-total difference, doubled.
-   - If a team's handicap total exceeds 22, a bonus handicap applies. If
-     *both* teams exceed 22, the bonus handicap equals the same raw
-     difference used above. ("Each point over 22 will be a direct add to
-     the base handicap" for the general case.)
-   - Base + bonus handicap are added together and rounded *once*, as a
-     single combined figure, added entirely to the lower-handicap team.
-   - Worked example in the rules: totals 23.2 and 24.7 → base 3.0 + bonus
-     1.5 = 4.5 → rounds to 5.
-   - Note: this doesn't perfectly match the one real filled-in sheet this
-     app was originally verified against (23.4 vs 22.3 → the rule implies a
-     bonus of 3, but that real sheet recorded 2) — see the caveat in
-     `scoring.ts`.
+   The rule text describes a "base handicap" (team gap × 2) plus a separate
+   "bonus over 22", with a worked example of 23.2 vs 24.7 → 5.
+
+   **Superseded (2026-09-10):** the league stated the rule directly, and
+   that's what `src/lib/scoring.ts` implements: sum each side's handicaps,
+   take each side's amount over 22 (0 if at or under), double the
+   difference between those two amounts, and add it rounded to the side
+   with the lower over-22 amount. No bonus if neither side is over 22. This
+   matches the one real filled-in sheet (23.4 vs 22.3 → +2 recorded), which
+   the written-rules reading did not (it gave +3). Under the stated rule, the
+   worked example's totals give 3, not 5.
 3. 5-minute break allowed between rounds. Leaving mid-turn forfeits the
    game (scored as your handicap, max 7).
 4. **Roster: 3–6 players per team.** No adding players after mid-season.

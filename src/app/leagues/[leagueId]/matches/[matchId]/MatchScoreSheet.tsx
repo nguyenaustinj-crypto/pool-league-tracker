@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { saveMatchScores, type PairingScoreUpdate } from "@/lib/actions";
-import { calculateRoundScore, HANDICAP_CAP, type PairingScore } from "@/lib/scoring";
+import { amountOverCap, calculateRoundScore, HANDICAP_CAP, type PairingScore } from "@/lib/scoring";
 
 interface PlayerInfo {
   id: string;
@@ -100,8 +100,6 @@ export default function MatchScoreSheet({
 
       {rounds.map((round, i) => {
         const score = roundScores[i];
-        const homeOverCap = score.home.handicapTotal > HANDICAP_CAP;
-        const awayOverCap = score.away.handicapTotal > HANDICAP_CAP;
 
         return (
           <div key={round.id} className="flex flex-col gap-3 rounded-lg border p-4">
@@ -144,8 +142,8 @@ export default function MatchScoreSheet({
             </div>
 
             <div className="grid grid-cols-2 gap-4 border-t pt-3 text-sm">
-              <RoundSummary label={homeTeamName} team={score.home} overCap={homeOverCap} />
-              <RoundSummary label={awayTeamName} team={score.away} overCap={awayOverCap} />
+              <RoundSummary label={homeTeamName} team={score.home} />
+              <RoundSummary label={awayTeamName} team={score.away} />
             </div>
           </div>
         );
@@ -181,26 +179,28 @@ function ScoreInput({ value, onChange }: { value: number; onChange: (v: string) 
 function RoundSummary({
   label,
   team,
-  overCap,
 }: {
   label: string;
   team: ReturnType<typeof calculateRoundScore>["home"];
-  overCap: boolean;
 }) {
+  const overCap = amountOverCap(team.handicapTotal);
+
   return (
     <div>
       <div className="font-medium">{label}</div>
       <div className="text-neutral-500">Score subtotal: {team.scoreSubtotal}</div>
-      <div className="text-neutral-500">Handicap total: {team.handicapTotal}</div>
+      <div className="text-neutral-500">
+        {/* Summed handicaps are floats; one decimal matches how handicaps are kept. */}
+        Handicap total: {team.handicapTotal.toFixed(1)}
+        {overCap > 0 && (
+          <span className="text-neutral-400">
+            {" "}
+            ({overCap.toFixed(1)} over {HANDICAP_CAP})
+          </span>
+        )}
+      </div>
       <div className="text-neutral-500">Bonus: {team.bonus}</div>
       <div className="font-semibold">Round total: {team.roundTotal}</div>
-      {overCap && (
-        <div className="mt-1 text-xs text-amber-600">
-          Over the {HANDICAP_CAP} handicap cap — the bonus-over-cap rule from the league&apos;s
-          written rules is applied above, though it hasn&apos;t been checked against a real
-          example where it fired in practice.
-        </div>
-      )}
     </div>
   );
 }

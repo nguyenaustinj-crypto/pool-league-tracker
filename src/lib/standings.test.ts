@@ -130,8 +130,8 @@ describe("calculateStandings", () => {
   });
 
   it("includes the handicap bonus in points, not just raw game scores", () => {
-    // Unequal handicaps: 21.0 vs 20.0 gives the away side a +2 bonus, so
-    // its points should exceed its raw game score.
+    // 24 and 23 are 2 and 1 over 22 -> difference 1, doubled -> +2 to the
+    // away side, so its points should exceed its raw game score.
     const rows = calculateStandings(TEAMS, [
       {
         homeTeamId: "home",
@@ -144,8 +144,8 @@ describe("calculateStandings", () => {
                 homeGame2: 0,
                 awayGame1: 4,
                 awayGame2: 0,
-                homePlayer: { rating: 21 },
-                awayPlayer: { rating: 20 },
+                homePlayer: { rating: 24 },
+                awayPlayer: { rating: 23 },
               },
             ],
           },

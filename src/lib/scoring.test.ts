@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  amountOverCap,
   awayIndexForRound,
   calculateRoundScore,
   pairingHomeTotal,
@@ -11,14 +12,13 @@ import {
 /**
  * These tests exist because the scoring math is the whole product, it was
  * reverse-engineered by hand from a paper score sheet, and it has already
- * changed twice (generalized from a fixed 3-a-side to N tables, then the
- * "bonus over 22" rule). A wrong score is silent -- nobody notices until
- * the season standings are wrong -- so the real numbers from the source
- * documents are pinned here rather than left to memory.
+ * changed several times. A wrong score is silent -- nobody notices until
+ * the season standings are wrong -- so the real numbers are pinned here
+ * rather than left to memory.
  *
  * Sources:
  *  - the filled-in paper sheet in `Billardscoresheet-*` (a real played match)
- *  - the league's written rules, Rev 1.6 (see `docs/league-rules/`)
+ *  - the handicap rule as stated directly by the league (2026-09-10)
  */
 
 function pairing(homeG1: number, homeG2: number, awayG1: number, awayG2: number): PairingScore {
@@ -86,67 +86,21 @@ describe("calculateRoundScore -- score subtotals", () => {
   });
 });
 
-describe("calculateRoundScore -- handicap bonus, neither team over the cap", () => {
-  it("gives the lower-handicap team the doubled difference, rounded", () => {
-    // 21.0 vs 20.0 -> difference 1.0, doubled = 2. Nothing over the 22 cap.
-    const score = calculateRoundScore([], 21.0, 20.0);
-    expect(score.away.bonus).toBe(2);
-    expect(score.home.bonus).toBe(0);
+describe("amountOverCap", () => {
+  it("is how far a summed handicap sits over 22", () => {
+    expect(amountOverCap(23.4)).toBe(1.4);
+    expect(amountOverCap(24.7)).toBe(2.7);
   });
 
-  it("gives the bonus to the home side when home is the underdog", () => {
-    const score = calculateRoundScore([], 20.0, 21.0);
-    expect(score.home.bonus).toBe(2);
-    expect(score.away.bonus).toBe(0);
+  it("is zero at or under 22, never negative", () => {
+    expect(amountOverCap(22)).toBe(0);
+    expect(amountOverCap(20)).toBe(0);
+    expect(amountOverCap(0)).toBe(0);
   });
 
-  it("gives no bonus at all when the handicaps are level", () => {
-    const score = calculateRoundScore([], 20.0, 20.0);
-    expect(score.home.bonus).toBe(0);
-    expect(score.away.bonus).toBe(0);
-  });
-
-  it("rounds the doubled difference to a whole number", () => {
-    // 0.8 gap -> 1.6 -> 2. This is the gap from the real sheet's teams and
-    // it produced a +2 bonus in every round of that match.
-    const score = calculateRoundScore([], 21.8, 21.0);
-    expect(score.away.bonus).toBe(2);
-  });
-});
-
-describe("calculateRoundScore -- bonus over the 22 cap", () => {
-  it("reproduces the league rules' own worked example", () => {
-    // Rules Rev 1.6, rule #2: totals 23.2 and 24.7 (both over 22).
-    // Base handicap = 1.5 difference doubled = 3.0.
-    // Bonus handicap = 1.5 ("if both exceed 22, use the difference").
-    // 3.0 + 1.5 = 4.5, rounded once = 5, all to the lower-handicap team.
-    const score = calculateRoundScore([], 23.2, 24.7);
-    expect(score.home.bonus).toBe(5);
-    expect(score.away.bonus).toBe(0);
-  });
-
-  it("rounds base and cap bonus together, not separately", () => {
-    // The rule adds the two figures and rounds once ("...for a total
-    // handicap of 4.5 then rounded"). 22.1 vs 22.3 is a case where that
-    // actually matters: base 0.4 + cap bonus 0.2 = 0.6, which rounds to 1,
-    // whereas rounding each piece first would give 0 + 0 = 0.
-    const score = calculateRoundScore([], 22.3, 22.1);
-    expect(score.away.bonus).toBe(1);
-  });
-
-  it("adds only the over-cap excess when a single team is over the cap", () => {
-    // Extrapolated branch: the rules' example only covers both-teams-over.
-    // 25.0 vs 20.0 -> base 10.0, plus 25.0's 3.0 excess over 22 = 13.
-    const score = calculateRoundScore([], 25.0, 20.0);
-    expect(score.away.bonus).toBe(13);
-    expect(score.home.bonus).toBe(0);
-  });
-
-  it("treats a total exactly at the cap as not over it", () => {
-    // 22.0 is not "over 22", so this is a plain base-handicap case:
-    // difference 2.0 doubled = 4, with no cap bonus stacked on.
-    const score = calculateRoundScore([], 22.0, 20.0);
-    expect(score.away.bonus).toBe(4);
+  it("strips floating-point noise from summed handicaps", () => {
+    // JR 7.9 + TOMMY 7.0 + JAMEY 8.5 is 23.400000000000002 in floating point.
+    expect(amountOverCap(7.9 + 7.0 + 8.5)).toBe(1.4);
   });
 
   it("exposes the cap as a constant so the UI and math agree", () => {
@@ -154,36 +108,79 @@ describe("calculateRoundScore -- bonus over the 22 cap", () => {
   });
 });
 
-describe("calculateRoundScore -- the real paper sheet", () => {
-  const realRound = [pairing(6, 10, 10, 4), pairing(7, 10, 10, 4), pairing(10, 10, 4, 6)];
-  const homeHandicap = 23.4; // JR 7.9 + TOMMY 7.0 + JAMEY 8.5
-  const awayHandicap = 22.3; // JOHN 8.0 + ANDY 6.9 + SATCH 7.4
+describe("calculateRoundScore -- handicap bonus", () => {
+  // The league's rule: sum each side's handicaps, take the amount each is
+  // over 22, take the difference of those amounts times 2, and give it
+  // (rounded) to the side with the lower over-22 amount.
 
-  it("matches the sheet's recorded score subtotals and unbonused home total", () => {
-    const score = calculateRoundScore(realRound, homeHandicap, awayHandicap);
-    expect(score.home.scoreSubtotal).toBe(53);
-    expect(score.away.scoreSubtotal).toBe(38);
-    // The stronger side gets no bonus, so its round total is its subtotal --
-    // the sheet recorded exactly 53.
-    expect(score.home.roundTotal).toBe(53);
+  it("gives no bonus when neither side is over 22, however far apart they are", () => {
+    const score = calculateRoundScore([], 21.0, 15.0);
+    expect(score.home.bonus).toBe(0);
+    expect(score.away.bonus).toBe(0);
   });
 
-  it("DOCUMENTED DISCREPANCY: rules give the away side +3, the sheet recorded +2", () => {
-    // Both totals are over 22 (23.4 and 22.3), so per the written rules:
-    // base 1.1 doubled = 2.2, plus a 1.1 cap bonus = 3.3, rounded to 3.
-    // The real hand-filled sheet recorded a bonus of 2 and left its "Bonus
-    // over 22" cell blank -- so either the scorekeeper skipped that line, or
-    // real play doesn't apply it as literally as the written rules do.
-    //
-    // This test pins CURRENT behavior (the written rule) rather than the
-    // sheet. If the league confirms the sheet is right, change the formula
-    // and this expectation together -- don't "fix" one without the other.
-    const score = calculateRoundScore(realRound, homeHandicap, awayHandicap);
-    expect(score.away.bonus).toBe(3);
-    expect(score.away.roundTotal).toBe(41);
+  it("gives no bonus when both sides are the same amount over 22", () => {
+    const score = calculateRoundScore([], 23.5, 23.5);
+    expect(score.home.bonus).toBe(0);
+    expect(score.away.bonus).toBe(0);
+  });
 
-    const sheetRecordedBonus = 2;
-    expect(score.away.bonus).not.toBe(sheetRecordedBonus);
+  it("treats a total of exactly 22 as not over", () => {
+    const score = calculateRoundScore([], 22.0, 20.0);
+    expect(score.home.bonus).toBe(0);
+    expect(score.away.bonus).toBe(0);
+  });
+
+  it("doubles the difference in over-22 amounts when both sides are over", () => {
+    // 24.7 and 23.2 are 2.7 and 1.2 over. Difference 1.5, doubled 3.
+    // (The written rules' own worked example used these totals and got 5;
+    // the rule the league stated directly gives 3, and that's what counts.)
+    const score = calculateRoundScore([], 23.2, 24.7);
+    expect(score.home.bonus).toBe(3);
+    expect(score.away.bonus).toBe(0);
+  });
+
+  it("counts a side at or under 22 as zero over when only the other side is over", () => {
+    // 25.0 is 3.0 over; 20.0 is 0 over. Difference 3.0, doubled 6.
+    const score = calculateRoundScore([], 25.0, 20.0);
+    expect(score.away.bonus).toBe(6);
+    expect(score.home.bonus).toBe(0);
+  });
+
+  it("gives the bonus to whichever side has the lower over-22 amount, home or away", () => {
+    const homeLower = calculateRoundScore([], 22.3, 23.4);
+    expect(homeLower.home.bonus).toBe(2);
+    expect(homeLower.away.bonus).toBe(0);
+
+    const awayLower = calculateRoundScore([], 23.4, 22.3);
+    expect(awayLower.away.bonus).toBe(2);
+    expect(awayLower.home.bonus).toBe(0);
+  });
+
+  it("rounds the doubled difference to the nearest whole number", () => {
+    // 0.5 and 0.2 over -> 0.3 -> 0.6 -> 1.
+    expect(calculateRoundScore([], 22.5, 22.2).away.bonus).toBe(1);
+    // 0.4 and 0.2 over -> 0.2 -> 0.4 -> 0.
+    expect(calculateRoundScore([], 22.4, 22.2).away.bonus).toBe(0);
+  });
+});
+
+describe("calculateRoundScore -- the real paper sheet", () => {
+  const realRound = [pairing(6, 10, 10, 4), pairing(7, 10, 10, 4), pairing(10, 10, 4, 6)];
+  const homeHandicap = 7.9 + 7.0 + 8.5; // JR + TOMMY + JAMEY = 23.4
+  const awayHandicap = 8.0 + 6.9 + 7.4; // JOHN + ANDY + SATCH = 22.3
+
+  it("reproduces every number the sheet recorded for that round", () => {
+    const score = calculateRoundScore(realRound, homeHandicap, awayHandicap);
+
+    // 1.4 and 0.3 over 22 -> difference 1.1 -> doubled 2.2 -> rounded 2,
+    // to the away side. The sheet recorded exactly: home 53, away 38 + 2 = 40.
+    expect(score.home.scoreSubtotal).toBe(53);
+    expect(score.home.bonus).toBe(0);
+    expect(score.home.roundTotal).toBe(53);
+    expect(score.away.scoreSubtotal).toBe(38);
+    expect(score.away.bonus).toBe(2);
+    expect(score.away.roundTotal).toBe(40);
   });
 });
 
