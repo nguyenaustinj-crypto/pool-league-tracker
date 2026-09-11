@@ -3,9 +3,11 @@ import Link from "next/link";
 export default function LeagueHeader({
   leagueId,
   leagueName,
+  canEdit,
 }: {
   leagueId: string;
   leagueName: string;
+  canEdit: boolean;
 }) {
   return (
     <div>
@@ -16,9 +18,11 @@ export default function LeagueHeader({
       </p>
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">{leagueName}</h1>
-        <Link href={`/leagues/${leagueId}/edit`} className="text-sm text-neutral-500 underline">
-          Edit League
-        </Link>
+        {canEdit && (
+          <Link href={`/leagues/${leagueId}/edit`} className="text-sm text-neutral-500 underline">
+            Edit League
+          </Link>
+        )}
       </div>
     </div>
   );

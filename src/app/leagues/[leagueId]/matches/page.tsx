@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { isEditor } from "@/lib/editor";
 import { calculateRoundScore } from "@/lib/scoring";
 import LeagueHeader from "../LeagueHeader";
 import LeagueTabs from "../LeagueTabs";
@@ -14,6 +15,7 @@ export default async function LeagueMatchesPage({
   const league = await prisma.league.findUnique({ where: { id: leagueId } });
   if (!league) notFound();
 
+  const canEdit = await isEditor();
   const matches = await prisma.match.findMany({
     where: { leagueId },
     orderBy: { date: "desc" },
@@ -26,18 +28,20 @@ export default async function LeagueMatchesPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <LeagueHeader leagueId={league.id} leagueName={league.name} />
+      <LeagueHeader leagueId={league.id} leagueName={league.name} canEdit={canEdit} />
       <LeagueTabs leagueId={league.id} active="matches" />
 
       <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-end">
-          <Link
-            href={`/leagues/${league.id}/matches/new`}
-            className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white"
-          >
-            + New Match
-          </Link>
-        </div>
+        {canEdit && (
+          <div className="flex items-center justify-end">
+            <Link
+              href={`/leagues/${league.id}/matches/new`}
+              className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white"
+            >
+              + New Match
+            </Link>
+          </div>
+        )}
         <ul className="flex flex-col gap-2">
           {matches.map((match) => {
             let homeTotal = 0;
@@ -76,12 +80,14 @@ export default async function LeagueMatchesPage({
                     {homeTotal} – {awayTotal}
                   </div>
                 </Link>
-                <Link
-                  href={`/leagues/${league.id}/matches/${match.id}/edit`}
-                  className="self-end text-sm text-neutral-500 underline sm:ml-4 sm:shrink-0 sm:self-auto"
-                >
-                  Edit
-                </Link>
+                {canEdit && (
+                  <Link
+                    href={`/leagues/${league.id}/matches/${match.id}/edit`}
+                    className="self-end text-sm text-neutral-500 underline sm:ml-4 sm:shrink-0 sm:self-auto"
+                  >
+                    Edit
+                  </Link>
+                )}
               </li>
             );
           })}

@@ -3,9 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { requireEditor } from "@/lib/editor";
 import { awayIndexForRound, type PairingScore } from "@/lib/scoring";
 
 export async function createLeague(formData: FormData) {
+  await requireEditor();
+
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return;
 
@@ -14,6 +17,8 @@ export async function createLeague(formData: FormData) {
 }
 
 export async function updateLeague(leagueId: string, formData: FormData) {
+  await requireEditor();
+
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return;
 
@@ -26,6 +31,8 @@ export async function updateLeague(leagueId: string, formData: FormData) {
 }
 
 export async function deleteLeague(leagueId: string, formData: FormData) {
+  await requireEditor();
+
   const league = await prisma.league.findUniqueOrThrow({ where: { id: leagueId } });
   const confirmation = String(formData.get("confirmName") ?? "").trim();
   if (confirmation !== league.name) {
@@ -38,6 +45,8 @@ export async function deleteLeague(leagueId: string, formData: FormData) {
 }
 
 export async function createTeam(leagueId: string, formData: FormData) {
+  await requireEditor();
+
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return;
 
@@ -47,6 +56,8 @@ export async function createTeam(leagueId: string, formData: FormData) {
 }
 
 export async function updateTeam(leagueId: string, teamId: string, formData: FormData) {
+  await requireEditor();
+
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return;
 
@@ -58,6 +69,8 @@ export async function updateTeam(leagueId: string, teamId: string, formData: For
 }
 
 export async function deleteTeam(leagueId: string, teamId: string) {
+  await requireEditor();
+
   const matchCount = await prisma.match.count({
     where: { OR: [{ homeTeamId: teamId }, { awayTeamId: teamId }] },
   });
@@ -74,6 +87,8 @@ export async function deleteTeam(leagueId: string, teamId: string) {
 }
 
 export async function createPlayer(leagueId: string, teamId: string, formData: FormData) {
+  await requireEditor();
+
   const name = String(formData.get("name") ?? "").trim();
   const rating = Number(formData.get("rating"));
   if (!name || Number.isNaN(rating)) return;
@@ -84,6 +99,8 @@ export async function createPlayer(leagueId: string, teamId: string, formData: F
 }
 
 export async function updatePlayer(leagueId: string, playerId: string, formData: FormData) {
+  await requireEditor();
+
   const name = String(formData.get("name") ?? "").trim();
   const rating = Number(formData.get("rating"));
   if (!name || Number.isNaN(rating)) return;
@@ -94,6 +111,8 @@ export async function updatePlayer(leagueId: string, playerId: string, formData:
 }
 
 export async function deletePlayer(leagueId: string, playerId: string) {
+  await requireEditor();
+
   const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId } });
   const pairingCount = await prisma.pairing.count({
     where: { OR: [{ homePlayerId: playerId }, { awayPlayerId: playerId }] },
@@ -183,6 +202,8 @@ function roundsCreateData(
 }
 
 export async function createMatch(leagueId: string, formData: FormData) {
+  await requireEditor();
+
   const homeTeamId = String(formData.get("homeTeamId") ?? "");
   const awayTeamId = String(formData.get("awayTeamId") ?? "");
   const homePlayerIds = formData.getAll("homePlayerIds").map(String);
@@ -209,6 +230,8 @@ function sortedIds(ids: string[]) {
 }
 
 export async function updateMatch(leagueId: string, matchId: string, formData: FormData) {
+  await requireEditor();
+
   const dateValue = String(formData.get("date") ?? "");
   const homeTeamId = String(formData.get("homeTeamId") ?? "");
   const awayTeamId = String(formData.get("awayTeamId") ?? "");
@@ -284,6 +307,8 @@ export async function updateMatch(leagueId: string, matchId: string, formData: F
 }
 
 export async function deleteMatch(leagueId: string, matchId: string) {
+  await requireEditor();
+
   await prisma.match.delete({ where: { id: matchId } });
   revalidatePath(`/leagues/${leagueId}`);
   revalidatePath(`/leagues/${leagueId}/matches`);
@@ -303,6 +328,8 @@ export async function saveMatchScores(
   matchId: string,
   updates: PairingScoreUpdate[]
 ) {
+  await requireEditor();
+
   await prisma.$transaction(
     updates.map((u) =>
       prisma.pairing.update({

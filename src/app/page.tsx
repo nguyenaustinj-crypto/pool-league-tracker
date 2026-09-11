@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { createLeague } from "@/lib/actions";
+import { isEditor } from "@/lib/editor";
 
 export default async function HomePage() {
   const leagues = await prisma.league.findMany({
     orderBy: { name: "asc" },
     include: { teams: true, matches: true },
   });
+  const canEdit = await isEditor();
 
   return (
     <div className="flex flex-col gap-6">
@@ -28,25 +30,29 @@ export default async function HomePage() {
           </li>
         ))}
         {leagues.length === 0 && (
-          <p className="text-neutral-500">No leagues yet. Add your first one below.</p>
+          <p className="text-neutral-500">
+            No leagues yet.{canEdit && " Add your first one below."}
+          </p>
         )}
       </ul>
 
-      <form action={createLeague} className="flex flex-col gap-2 rounded-lg border p-4 sm:flex-row">
-        <input
-          type="text"
-          name="name"
-          placeholder="League name"
-          required
-          className="flex-1 rounded-md border px-3 py-2"
-        />
-        <button
-          type="submit"
-          className="shrink-0 rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white"
-        >
-          Add League
-        </button>
-      </form>
+      {canEdit && (
+        <form action={createLeague} className="flex flex-col gap-2 rounded-lg border p-4 sm:flex-row">
+          <input
+            type="text"
+            name="name"
+            placeholder="League name"
+            required
+            className="flex-1 rounded-md border px-3 py-2"
+          />
+          <button
+            type="submit"
+            className="shrink-0 rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white"
+          >
+            Add League
+          </button>
+        </form>
+      )}
     </div>
   );
 }

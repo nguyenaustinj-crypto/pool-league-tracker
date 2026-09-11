@@ -30,12 +30,15 @@ export default function MatchScoreSheet({
   homeTeamName,
   awayTeamName,
   rounds,
+  canEdit,
 }: {
   leagueId: string;
   matchId: string;
   homeTeamName: string;
   awayTeamName: string;
   rounds: RoundData[];
+  /** Viewers see the same sheet, with scores as plain numbers and no save button. */
+  canEdit: boolean;
 }) {
   const [scores, setScores] = useState<Record<string, PairingScore>>(() => {
     const initial: Record<string, PairingScore> = {};
@@ -118,10 +121,12 @@ export default function MatchScoreSheet({
                       <span className="w-20 text-neutral-500">{pairing.homePlayer.name}</span>
                       <ScoreInput
                         value={s.homeGame1}
+                        readOnly={!canEdit}
                         onChange={(v) => updateScore(pairing.id, "homeGame1", v)}
                       />
                       <ScoreInput
                         value={s.homeGame2}
+                        readOnly={!canEdit}
                         onChange={(v) => updateScore(pairing.id, "homeGame2", v)}
                       />
                     </div>
@@ -129,10 +134,12 @@ export default function MatchScoreSheet({
                       <span className="w-20 text-neutral-500">{pairing.awayPlayer.name}</span>
                       <ScoreInput
                         value={s.awayGame1}
+                        readOnly={!canEdit}
                         onChange={(v) => updateScore(pairing.id, "awayGame1", v)}
                       />
                       <ScoreInput
                         value={s.awayGame2}
+                        readOnly={!canEdit}
                         onChange={(v) => updateScore(pairing.id, "awayGame2", v)}
                       />
                     </div>
@@ -149,21 +156,35 @@ export default function MatchScoreSheet({
         );
       })}
 
-      <div className="flex items-center gap-3">
-        <button
-          onClick={handleSave}
-          disabled={isPending}
-          className="rounded-md bg-neutral-900 px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
-        >
-          {isPending ? "Saving…" : "Save Scores"}
-        </button>
-        {saved && <span className="text-sm text-green-600">Saved.</span>}
-      </div>
+      {canEdit && (
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleSave}
+            disabled={isPending}
+            className="rounded-md bg-neutral-900 px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {isPending ? "Saving…" : "Save Scores"}
+          </button>
+          {saved && <span className="text-sm text-green-600">Saved.</span>}
+        </div>
+      )}
     </div>
   );
 }
 
-function ScoreInput({ value, onChange }: { value: number; onChange: (v: string) => void }) {
+function ScoreInput({
+  value,
+  readOnly,
+  onChange,
+}: {
+  value: number;
+  readOnly: boolean;
+  onChange: (v: string) => void;
+}) {
+  if (readOnly) {
+    return <span className="w-14 px-2 py-1 text-center tabular-nums">{value}</span>;
+  }
+
   return (
     <input
       type="number"

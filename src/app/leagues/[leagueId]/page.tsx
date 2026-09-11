@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { isEditor } from "@/lib/editor";
 import { calculateStandings } from "@/lib/standings";
 import LeagueHeader from "./LeagueHeader";
 import LeagueTabs from "./LeagueTabs";
@@ -26,10 +27,11 @@ export default async function LeaguePage({
   });
 
   const standings = calculateStandings(league.teams, matches);
+  const canEdit = await isEditor();
 
   return (
     <div className="flex flex-col gap-6">
-      <LeagueHeader leagueId={league.id} leagueName={league.name} />
+      <LeagueHeader leagueId={league.id} leagueName={league.name} canEdit={canEdit} />
       <LeagueTabs leagueId={league.id} active="standings" />
 
       <section className="flex flex-col gap-3">

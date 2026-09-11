@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { requireEditorPage } from "@/lib/editor";
 import NewMatchForm from "./NewMatchForm";
 
 export default async function NewMatchPage({
@@ -9,6 +10,7 @@ export default async function NewMatchPage({
   params: Promise<{ leagueId: string }>;
 }) {
   const { leagueId } = await params;
+  await requireEditorPage(`/leagues/${leagueId}/matches/new`);
   const league = await prisma.league.findUnique({ where: { id: leagueId } });
   if (!league) notFound();
 

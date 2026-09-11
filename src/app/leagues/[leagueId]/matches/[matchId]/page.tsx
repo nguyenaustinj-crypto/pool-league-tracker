@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { isEditor } from "@/lib/editor";
 import MatchScoreSheet from "./MatchScoreSheet";
 
 export default async function MatchPage({
@@ -28,6 +29,7 @@ export default async function MatchPage({
 
   if (!match || match.leagueId !== leagueId) notFound();
 
+  const canEdit = await isEditor();
   const homeTeamName = match.homeTeam.name;
   const awayTeamName = match.awayTeam.name;
 
@@ -46,12 +48,14 @@ export default async function MatchPage({
         <h1 className="text-xl font-bold">
           {homeTeamName} vs {awayTeamName}
         </h1>
-        <Link
-          href={`/leagues/${leagueId}/matches/${matchId}/edit`}
-          className="text-sm text-neutral-500 underline"
-        >
-          Edit
-        </Link>
+        {canEdit && (
+          <Link
+            href={`/leagues/${leagueId}/matches/${matchId}/edit`}
+            className="text-sm text-neutral-500 underline"
+          >
+            Edit
+          </Link>
+        )}
       </div>
       <p className="text-sm text-neutral-500">{new Date(match.date).toLocaleDateString()}</p>
 
@@ -61,6 +65,7 @@ export default async function MatchPage({
         homeTeamName={homeTeamName}
         awayTeamName={awayTeamName}
         rounds={match.rounds}
+        canEdit={canEdit}
       />
     </div>
   );

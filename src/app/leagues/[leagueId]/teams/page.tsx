@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { createTeam } from "@/lib/actions";
+import { isEditor } from "@/lib/editor";
 import LeagueHeader from "../LeagueHeader";
 import LeagueTabs from "../LeagueTabs";
 
@@ -19,11 +20,12 @@ export default async function LeagueTeamsPage({
   });
   if (!league) notFound();
 
+  const canEdit = await isEditor();
   const createTeamInLeague = createTeam.bind(null, league.id);
 
   return (
     <div className="flex flex-col gap-6">
-      <LeagueHeader leagueId={league.id} leagueName={league.name} />
+      <LeagueHeader leagueId={league.id} leagueName={league.name} canEdit={canEdit} />
       <LeagueTabs leagueId={league.id} active="teams" />
 
       <section className="flex flex-col gap-3">
@@ -42,27 +44,31 @@ export default async function LeagueTeamsPage({
             </li>
           ))}
           {league.teams.length === 0 && (
-            <p className="text-neutral-500">No teams yet. Add the first one below.</p>
+            <p className="text-neutral-500">
+              No teams yet.{canEdit && " Add the first one below."}
+            </p>
           )}
         </ul>
-        <form
-          action={createTeamInLeague}
-          className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row"
-        >
-          <input
-            type="text"
-            name="name"
-            placeholder="Team name"
-            required
-            className="flex-1 rounded-md border px-3 py-2"
-          />
-          <button
-            type="submit"
-            className="shrink-0 rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white"
+        {canEdit && (
+          <form
+            action={createTeamInLeague}
+            className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row"
           >
-            Add Team
-          </button>
-        </form>
+            <input
+              type="text"
+              name="name"
+              placeholder="Team name"
+              required
+              className="flex-1 rounded-md border px-3 py-2"
+            />
+            <button
+              type="submit"
+              className="shrink-0 rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white"
+            >
+              Add Team
+            </button>
+          </form>
+        )}
       </section>
     </div>
   );

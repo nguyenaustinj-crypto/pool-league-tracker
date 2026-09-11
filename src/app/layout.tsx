@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
+import { isEditor } from "@/lib/editor";
+import { signOut } from "@/lib/editor-actions";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -23,7 +25,9 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const canEdit = await isEditor();
+
   return (
     <html
       lang="en"
@@ -38,6 +42,17 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <Link href="/" className="ml-auto hover:underline">
               Leagues
             </Link>
+            {canEdit ? (
+              <form action={signOut}>
+                <button type="submit" className="hover:underline">
+                  Sign out
+                </button>
+              </form>
+            ) : (
+              <Link href="/login" className="hover:underline">
+                Editor sign in
+              </Link>
+            )}
           </nav>
         </header>
         <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-6">{children}</main>

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { updateLeague, deleteLeague } from "@/lib/actions";
+import { requireEditorPage } from "@/lib/editor";
 import DeleteConfirmForm from "./DeleteConfirmForm";
 
 export default async function EditLeaguePage({
@@ -10,6 +11,7 @@ export default async function EditLeaguePage({
   params: Promise<{ leagueId: string }>;
 }) {
   const { leagueId } = await params;
+  await requireEditorPage(`/leagues/${leagueId}/edit`);
   const league = await prisma.league.findUnique({ where: { id: leagueId } });
   if (!league) notFound();
 

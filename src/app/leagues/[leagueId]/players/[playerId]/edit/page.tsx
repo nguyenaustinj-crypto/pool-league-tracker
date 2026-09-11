@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { updatePlayer, deletePlayer } from "@/lib/actions";
+import { requireEditorPage } from "@/lib/editor";
 
 export default async function EditPlayerPage({
   params,
@@ -9,6 +10,7 @@ export default async function EditPlayerPage({
   params: Promise<{ leagueId: string; playerId: string }>;
 }) {
   const { leagueId, playerId } = await params;
+  await requireEditorPage(`/leagues/${leagueId}/players/${playerId}/edit`);
   const player = await prisma.player.findUnique({
     where: { id: playerId },
     include: { team: { include: { league: true } } },
