@@ -18,6 +18,18 @@ export function pairingAwayTotal(p: PairingScore): number {
 }
 
 /**
+ * Whether anyone has entered scores for this round yet. A played game always
+ * has a winner with 10, so a round where every game is still 0 hasn't been
+ * played (or entered). Unplayed rounds must not count toward match totals or
+ * standings, or the handicap bonus alone would decide them.
+ */
+export function isRoundPlayed(pairings: PairingScore[]): boolean {
+  return pairings.some(
+    (p) => p.homeGame1 > 0 || p.homeGame2 > 0 || p.awayGame1 > 0 || p.awayGame2 > 0
+  );
+}
+
+/**
  * Round-robin pairing schedule for an N-a-side round (N = number of
  * tables): across N rounds, each home player faces each away player
  * exactly once. Round r (0-indexed): home[i] plays away[(i + r) % N].

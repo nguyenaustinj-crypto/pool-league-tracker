@@ -1,4 +1,4 @@
-import { calculateRoundScore, type PairingScore } from "@/lib/scoring";
+import { calculateRoundScore, isRoundPlayed, type PairingScore } from "@/lib/scoring";
 
 // Standings are based on ROUND wins, not match wins -- per the league's own
 // rule #12 ("the team with the most round wins at the end of the season
@@ -44,6 +44,11 @@ export function calculateStandings(
     if (!home || !away) continue;
 
     for (const round of match.rounds) {
+      // A round nobody has scored yet isn't a result. Counting it would make
+      // every unplayed round a tie, or a win for whichever side the handicap
+      // bonus favors.
+      if (!isRoundPlayed(round.pairings)) continue;
+
       const homeHandicapTotal = round.pairings.reduce((sum, p) => sum + p.homePlayer.rating, 0);
       const awayHandicapTotal = round.pairings.reduce((sum, p) => sum + p.awayPlayer.rating, 0);
       const score = calculateRoundScore(round.pairings, homeHandicapTotal, awayHandicapTotal);

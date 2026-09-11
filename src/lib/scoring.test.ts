@@ -3,6 +3,7 @@ import {
   amountOverCap,
   awayIndexForRound,
   calculateRoundScore,
+  isRoundPlayed,
   pairingHomeTotal,
   pairingAwayTotal,
   HANDICAP_CAP,
@@ -30,6 +31,18 @@ describe("pairing totals", () => {
     const p = pairing(6, 10, 10, 4);
     expect(pairingHomeTotal(p)).toBe(16);
     expect(pairingAwayTotal(p)).toBe(14);
+  });
+});
+
+describe("isRoundPlayed", () => {
+  it("is false until someone enters a score", () => {
+    expect(isRoundPlayed([])).toBe(false);
+    expect(isRoundPlayed([pairing(0, 0, 0, 0), pairing(0, 0, 0, 0)])).toBe(false);
+  });
+
+  it("is true as soon as any game in the round has points", () => {
+    expect(isRoundPlayed([pairing(0, 0, 0, 0), pairing(0, 0, 3, 0)])).toBe(true);
+    expect(isRoundPlayed([pairing(10, 0, 0, 0)])).toBe(true);
   });
 });
 

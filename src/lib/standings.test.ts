@@ -159,4 +159,34 @@ describe("calculateStandings", () => {
     expect(standingFor("away", rows).wins).toBe(1);
     expect(standingFor("home", rows).losses).toBe(1);
   });
+
+  it("skips rounds nobody has scored yet, even when the handicap bonus would decide them", () => {
+    // 24 vs 23 gives the away side a +2 bonus -- enough to "win" a round in
+    // which no one has played a game. An unplayed round isn't a result at all.
+    const unplayed = {
+      pairings: [
+        {
+          homeGame1: 0,
+          homeGame2: 0,
+          awayGame1: 0,
+          awayGame2: 0,
+          homePlayer: { rating: 24 },
+          awayPlayer: { rating: 23 },
+        },
+      ],
+    };
+    const rows = calculateStandings(TEAMS, [
+      { homeTeamId: "home", awayTeamId: "away", rounds: [round(10, 4), unplayed, unplayed] },
+    ]);
+
+    expect(standingFor("home", rows)).toMatchObject({ wins: 1, losses: 0, ties: 0, points: 10 });
+    expect(standingFor("away", rows)).toMatchObject({ wins: 0, losses: 1, ties: 0, points: 4 });
+  });
+
+  it("gives an entirely unscored match no effect on standings", () => {
+    const rows = calculateStandings(TEAMS, [match(round(0, 0), round(0, 0), round(0, 0))]);
+    for (const row of rows) {
+      expect(row).toMatchObject({ wins: 0, losses: 0, ties: 0, points: 0 });
+    }
+  });
 });

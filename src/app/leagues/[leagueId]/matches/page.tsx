@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { isEditor } from "@/lib/editor";
-import { calculateRoundScore } from "@/lib/scoring";
+import { calculateRoundScore, isRoundPlayed } from "@/lib/scoring";
 import LeagueHeader from "../LeagueHeader";
 import LeagueTabs from "../LeagueTabs";
 
@@ -47,6 +47,9 @@ export default async function LeagueMatchesPage({
             let homeTotal = 0;
             let awayTotal = 0;
             for (const round of match.rounds) {
+              // Unscored rounds don't count; the handicap bonus alone would
+              // otherwise put points on the board before anyone plays.
+              if (!isRoundPlayed(round.pairings)) continue;
               const homeHandicapTotal = round.pairings.reduce(
                 (sum, p) => sum + p.homePlayer.rating,
                 0

@@ -2,7 +2,13 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { saveMatchScores, type PairingScoreUpdate } from "@/lib/actions";
-import { amountOverCap, calculateRoundScore, HANDICAP_CAP, type PairingScore } from "@/lib/scoring";
+import {
+  amountOverCap,
+  calculateRoundScore,
+  HANDICAP_CAP,
+  isRoundPlayed,
+  type PairingScore,
+} from "@/lib/scoring";
 
 interface PlayerInfo {
   id: string;
@@ -72,13 +78,19 @@ export default function MatchScoreSheet({
         const homeHandicapTotal = round.pairings.reduce((sum, p) => sum + p.homePlayer.rating, 0);
         const awayHandicapTotal = round.pairings.reduce((sum, p) => sum + p.awayPlayer.rating, 0);
         const pairingScores = round.pairings.map((p) => scores[p.id] ?? emptyScores);
-        return calculateRoundScore(pairingScores, homeHandicapTotal, awayHandicapTotal);
+        return {
+          ...calculateRoundScore(pairingScores, homeHandicapTotal, awayHandicapTotal),
+          played: isRoundPlayed(pairingScores),
+        };
       }),
     [rounds, scores]
   );
 
-  const matchHomeTotal = roundScores.reduce((sum, r) => sum + r.home.roundTotal, 0);
-  const matchAwayTotal = roundScores.reduce((sum, r) => sum + r.away.roundTotal, 0);
+  // Rounds nobody has scored yet don't count toward the match total, or the
+  // handicap bonus alone would put points on the board before anyone plays.
+  const playedRounds = roundScores.filter((r) => r.played);
+  const matchHomeTotal = playedRounds.reduce((sum, r) => sum + r.home.roundTotal, 0);
+  const matchAwayTotal = playedRounds.reduce((sum, r) => sum + r.away.roundTotal, 0);
 
   function handleSave() {
     const updates: PairingScoreUpdate[] = rounds.flatMap((round) =>
@@ -149,8 +161,8 @@ export default function MatchScoreSheet({
             </div>
 
             <div className="grid grid-cols-2 gap-4 border-t pt-3 text-sm">
-              <RoundSummary label={homeTeamName} team={score.home} />
-              <RoundSummary label={awayTeamName} team={score.away} />
+              <RoundSummary label={homeTeamName} team={score.home} played={score.played} />
+              <RoundSummary label={awayTeamName} team={score.away} played={score.played} />
             </div>
           </div>
         );
@@ -200,9 +212,11 @@ function ScoreInput({
 function RoundSummary({
   label,
   team,
+  played,
 }: {
   label: string;
   team: ReturnType<typeof calculateRoundScore>["home"];
+  played: boolean;
 }) {
   const overCap = amountOverCap(team.handicapTotal);
 
@@ -220,8 +234,14 @@ function RoundSummary({
           </span>
         )}
       </div>
-      <div className="text-neutral-500">Bonus: {team.bonus}</div>
-      <div className="font-semibold">Round total: {team.roundTotal}</div>
+      {played ? (
+        <>
+          <div className="text-neutral-500">Bonus: {team.bonus}</div>
+          <div className="font-semibold">Round total: {team.roundTotal}</div>
+        </>
+      ) : (
+        <div className="text-neutral-400">Not scored yet</div>
+      )}
     </div>
   );
 }
