@@ -7,6 +7,8 @@ export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",
+    // `npx prisma db seed`: fills an empty dev database with a test league.
+    seed: "tsx prisma/seed.ts",
   },
   datasource: {
     // Prisma CLI commands (migrate, studio) need a direct, non-pooled
