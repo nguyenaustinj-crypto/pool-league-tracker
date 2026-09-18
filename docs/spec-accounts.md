@@ -294,6 +294,12 @@ checks on the server first**, because actions accept direct POST requests.
    *Built 2026-09-18, along with league search and join requests from stage
    3. The existing league gets its manager via "Add me as a manager" on its
    Members page, which only site admins see.*
+   *Invites built 2026-09-18, changed from the plan above at the league's
+   request: every league has one **reusable player invite link** that any
+   member can share and that joins people directly (a manager can reset
+   it); **manager invites** are one-time links (14 days, hashed) that only
+   managers create. Players can also **ask to become a manager**, answered
+   on the Members page. Linking accounts to roster names is still to do.*
 3. **Joining.** League search, join requests with manager approval, invite
    links, and linking accounts to roster names.
 4. **Player score entry.** Tap-to-score cards with the ERO toggle, one-card

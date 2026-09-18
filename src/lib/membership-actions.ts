@@ -3,12 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getLeagueAccess, requireLeagueManager, requireSignedIn } from "@/lib/access";
+import { hashInviteToken, managerInviteExpiry, newInviteToken } from "@/lib/invite-token";
+import { resolveInvite, siteOrigin } from "@/lib/invites";
 import { leavesNoManager, type LeagueRoleName } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
-// Joining leagues, and managing who's in them. Each action checks on the
-// server who's asking (see src/lib/access.ts): server actions accept direct
-// POST requests, so the buttons being hidden isn't enough.
+// Joining leagues, invites, and managing who's in them. Each action checks
+// on the server who's asking (see src/lib/access.ts): server actions accept
+// direct POST requests, so the buttons being hidden isn't enough.
 
 function revalidateMembership(leagueId: string) {
   revalidatePath("/");
@@ -16,6 +18,10 @@ function revalidateMembership(leagueId: string) {
   revalidatePath(`/leagues/${leagueId}/members`);
   revalidatePath(`/leagues/${leagueId}/join`);
 }
+
+// ---------------------------------------------------------------------------
+// Asking the league's managers
+// ---------------------------------------------------------------------------
 
 /** Ask to join a league found through search. A manager has to approve it. */
 export async function requestToJoin(leagueId: string) {
@@ -28,13 +34,33 @@ export async function requestToJoin(leagueId: string) {
 
   await prisma.joinRequest.upsert({
     where: { leagueId_userId: { leagueId, userId: user.id } },
-    create: { leagueId, userId: user.id },
+    create: { leagueId, userId: user.id, role: "PLAYER" },
     // Asking again after a decline reopens the same request.
-    update: { status: "PENDING", createdAt: new Date(), decidedAt: null },
+    update: { role: "PLAYER", status: "PENDING", createdAt: new Date(), decidedAt: null },
   });
   revalidateMembership(leagueId);
   redirect(`/leagues/${leagueId}/join`);
 }
+
+/** A player asking to be made one of the league's managers. */
+export async function requestManagerRole(leagueId: string) {
+  const user = await requireSignedIn();
+  const access = await getLeagueAccess(leagueId);
+  if (!access.canRequestManager) {
+    throw new Error("Only players in this league can ask to be a manager.");
+  }
+
+  await prisma.joinRequest.upsert({
+    where: { leagueId_userId: { leagueId, userId: user.id } },
+    create: { leagueId, userId: user.id, role: "MANAGER" },
+    update: { role: "MANAGER", status: "PENDING", createdAt: new Date(), decidedAt: null },
+  });
+  revalidateMembership(leagueId);
+}
+
+// ---------------------------------------------------------------------------
+// Answering requests, and managing members (managers only)
+// ---------------------------------------------------------------------------
 
 async function pendingRequest(leagueId: string, requestId: string) {
   const request = await prisma.joinRequest.findUnique({ where: { id: requestId } });
@@ -51,8 +77,9 @@ export async function approveJoinRequest(leagueId: string, requestId: string) {
   await prisma.$transaction([
     prisma.leagueMembership.upsert({
       where: { leagueId_userId: { leagueId, userId: request.userId } },
-      create: { leagueId, userId: request.userId, role: "PLAYER" },
-      update: {},
+      create: { leagueId, userId: request.userId, role: request.role },
+      // A manager request promotes; a join request never demotes anyone.
+      update: request.role === "MANAGER" ? { role: "MANAGER" } : {},
     }),
     prisma.joinRequest.update({
       where: { id: requestId },
@@ -98,6 +125,13 @@ export async function setMemberRole(leagueId: string, userId: string, role: Leag
     where: { leagueId_userId: { leagueId, userId } },
     data: { role },
   });
+  if (role === "MANAGER") {
+    // Promoting someone answers any request they'd made to be a manager.
+    await prisma.joinRequest.updateMany({
+      where: { leagueId, userId, status: "PENDING", role: "MANAGER" },
+      data: { status: "APPROVED", decidedAt: new Date() },
+    });
+  }
   revalidateMembership(leagueId);
 }
 
@@ -107,7 +141,14 @@ export async function removeMember(leagueId: string, userId: string) {
   const members = await membersOf(leagueId, userId);
   if (leavesNoManager(members, userId, null)) throw new Error(LAST_MANAGER);
 
-  await prisma.leagueMembership.delete({ where: { leagueId_userId: { leagueId, userId } } });
+  await prisma.$transaction([
+    prisma.leagueMembership.delete({ where: { leagueId_userId: { leagueId, userId } } }),
+    // Don't leave a request behind that would let them straight back in.
+    prisma.joinRequest.updateMany({
+      where: { leagueId, userId, status: "PENDING" },
+      data: { status: "DECLINED", decidedAt: new Date() },
+    }),
+  ]);
   revalidateMembership(leagueId);
 }
 
@@ -128,4 +169,92 @@ export async function addMeAsManager(leagueId: string) {
     update: { role: "MANAGER" },
   });
   revalidateMembership(leagueId);
+}
+
+// ---------------------------------------------------------------------------
+// Invite links
+// ---------------------------------------------------------------------------
+
+/**
+ * Creates the league's reusable player invite link, or replaces it so the
+ * old one stops working. Managers only.
+ */
+export async function resetPlayerInviteLink(leagueId: string) {
+  await requireLeagueManager(leagueId);
+  await prisma.league.update({ where: { id: leagueId }, data: { inviteToken: newInviteToken() } });
+  revalidateMembership(leagueId);
+}
+
+export interface ManagerInviteState {
+  url: string | null;
+}
+
+/**
+ * Creates a one-time manager invite link, returned so it can be shown once.
+ * Only a hash of it is stored. Managers only. Used with useActionState, which
+ * also passes the previous state; it isn't needed here.
+ */
+export async function createManagerInvite(leagueId: string): Promise<ManagerInviteState> {
+  const access = await requireLeagueManager(leagueId);
+  const token = newInviteToken();
+  await prisma.managerInvite.create({
+    data: {
+      leagueId,
+      tokenHash: hashInviteToken(token),
+      createdById: access.user?.id ?? null,
+      expiresAt: managerInviteExpiry(),
+    },
+  });
+  return { url: `${await siteOrigin()}/invite/${token}` };
+}
+
+/** Uses an invite link: joins the league as a player, or becomes a manager. */
+export async function acceptInvite(token: string) {
+  const user = await requireSignedIn(`/invite/${token}`);
+  const invite = await resolveInvite(token);
+  if (!invite) throw new Error("This invite link isn't valid anymore.");
+  const { leagueId, role, managerInviteId } = invite;
+
+  if (role === "MANAGER" && managerInviteId) {
+    await prisma.$transaction(
+      async (tx) => {
+        // Claim the one-time invite before anything else, so two people
+        // opening the same link at once can't both use it.
+        const claimed = await tx.managerInvite.updateMany({
+          where: { id: managerInviteId, usedAt: null, expiresAt: { gt: new Date() } },
+          data: { usedAt: new Date(), usedById: user.id },
+        });
+        if (claimed.count !== 1) throw new Error("This invite link has already been used.");
+
+        await tx.leagueMembership.upsert({
+          where: { leagueId_userId: { leagueId, userId: user.id } },
+          create: { leagueId, userId: user.id, role: "MANAGER" },
+          update: { role: "MANAGER" },
+        });
+      },
+      // Prisma Postgres is remote; the default transaction timeouts are tight.
+      { maxWait: 10_000, timeout: 20_000 }
+    );
+  } else {
+    await prisma.leagueMembership.upsert({
+      where: { leagueId_userId: { leagueId, userId: user.id } },
+      create: { leagueId, userId: user.id, role: "PLAYER" },
+      // Someone already in the league keeps their role.
+      update: {},
+    });
+  }
+
+  // The invite answers any matching request they'd made.
+  await prisma.joinRequest.updateMany({
+    where: {
+      leagueId,
+      userId: user.id,
+      status: "PENDING",
+      ...(role === "PLAYER" ? { role: "PLAYER" as const } : {}),
+    },
+    data: { status: "APPROVED", decidedAt: new Date() },
+  });
+
+  revalidateMembership(leagueId);
+  redirect(`/leagues/${leagueId}`);
 }

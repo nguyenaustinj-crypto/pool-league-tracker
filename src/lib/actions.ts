@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireLeagueDelete, requireLeagueManager } from "@/lib/access";
 import { isSiteAdmin, redirectToLogin } from "@/lib/editor";
+import { newInviteToken } from "@/lib/invite-token";
 import { prisma } from "@/lib/prisma";
 import { awayIndexForRound, type PairingScore } from "@/lib/scoring";
 import { getCurrentUser } from "@/lib/session";
@@ -49,6 +50,8 @@ export async function createLeague(formData: FormData) {
   const league = await prisma.league.create({
     data: {
       name,
+      // Every league starts with a player invite link its members can share.
+      inviteToken: newInviteToken(),
       ...(user ? { memberships: { create: { userId: user.id, role: "MANAGER" as const } } } : {}),
     },
   });

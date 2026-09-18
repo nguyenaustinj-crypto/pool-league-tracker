@@ -6,12 +6,19 @@
 export type LeagueRoleName = "MANAGER" | "PLAYER";
 
 export interface LeaguePermissions {
-  /** See the league's standings, teams, and matches. */
+  /** See the league's standings, teams, matches, and members. */
   canView: boolean;
-  /** Change rosters, matches, scores, and settings; handle join requests. */
+  /** Share the league's player invite link. Anyone in the league can. */
+  canInvitePlayers: boolean;
+  /**
+   * Change rosters, matches, scores, and settings; handle requests; invite
+   * managers; reset the player invite link.
+   */
   canManage: boolean;
   /** Delete the whole league. Too destructive to leave to league managers. */
   canDelete: boolean;
+  /** Ask the league's managers to be made a manager. */
+  canRequestManager: boolean;
 }
 
 export function leaguePermissions({
@@ -23,8 +30,10 @@ export function leaguePermissions({
 }): LeaguePermissions {
   return {
     canView: isSiteAdmin || role !== null,
+    canInvitePlayers: isSiteAdmin || role !== null,
     canManage: isSiteAdmin || role === "MANAGER",
     canDelete: isSiteAdmin,
+    canRequestManager: role === "PLAYER",
   };
 }
 

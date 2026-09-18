@@ -11,12 +11,17 @@ datasource db {
 }
 
 model League {
-  id           String             @id @default(cuid())
-  name         String
-  teams        Team[]
-  matches      Match[]
-  memberships  LeagueMembership[]
-  joinRequests JoinRequest[]
+  id             String             @id @default(cuid())
+  name           String
+  // The league's reusable player invite link is /invite/<inviteToken>.
+  // Anyone with it can join as a player; a manager can reset it, which
+  // makes the old link stop working. Null until one is created.
+  inviteToken    String?            @unique
+  teams          Team[]
+  matches        Match[]
+  memberships    LeagueMembership[]
+  joinRequests   JoinRequest[]
+  managerInvites ManagerInvite[]
 }
 
 // A persistent, named team within a league. Every Player belongs to exactly
@@ -117,19 +122,39 @@ enum JoinRequestStatus {
   DECLINED
 }
 
-// Someone who found a league through search asking to join it. One row per
-// person per league: asking again after a decline reopens the same row.
+// Someone asking a league's managers for something: to join as a player
+// (found through search), or, for a player already in the league, to become
+// a manager (role = MANAGER). One row per person per league: a new request
+// reopens the same row.
 model JoinRequest {
   id        String            @id @default(cuid())
   league    League            @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   leagueId  String
   user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId    String
+  role      LeagueRole        @default(PLAYER)
   status    JoinRequestStatus @default(PENDING)
   createdAt DateTime          @default(now())
   decidedAt DateTime?
 
   @@unique([leagueId, userId])
+}
+
+// A one-time invite to become one of a league's managers, created by a
+// manager. Only a hash of the token is stored; the link is shown once, when
+// it's created. Works for one person, once, until expiresAt.
+model ManagerInvite {
+  id          String    @id @default(cuid())
+  league      League    @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  leagueId    String
+  tokenHash   String    @unique
+  createdById String?
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime
+  usedAt      DateTime?
+  usedById    String?
+
+  @@index([leagueId])
 }
 
 // ---------------------------------------------------------------------------

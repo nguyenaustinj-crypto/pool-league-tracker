@@ -31,7 +31,7 @@ export default async function LeagueMatchesPage({
   return (
     <div className="flex flex-col gap-6">
       <LeagueHeader leagueId={league.id} leagueName={league.name} canEdit={canEdit} />
-      <LeagueTabs leagueId={league.id} active="matches" canManage={canEdit} />
+      <LeagueTabs leagueId={league.id} active="matches" />
 
       <section className="flex flex-col gap-3">
         {canEdit && (

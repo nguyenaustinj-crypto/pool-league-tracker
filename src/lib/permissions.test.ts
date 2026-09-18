@@ -10,32 +10,40 @@ describe("leaguePermissions", () => {
   it("lets site admins see, manage, and delete any league, member or not", () => {
     expect(leaguePermissions({ isSiteAdmin: true, role: null })).toEqual({
       canView: true,
+      canInvitePlayers: true,
       canManage: true,
       canDelete: true,
+      canRequestManager: false,
     });
   });
 
-  it("lets a league's managers see and manage it, but not delete it", () => {
+  it("lets a league's managers see, manage, and invite, but not delete it", () => {
     expect(leaguePermissions({ isSiteAdmin: false, role: "MANAGER" })).toEqual({
       canView: true,
+      canInvitePlayers: true,
       canManage: true,
       canDelete: false,
+      canRequestManager: false,
     });
   });
 
-  it("lets players see their league but not change it", () => {
+  it("lets players see their league, share its player invite, and ask to be a manager", () => {
     expect(leaguePermissions({ isSiteAdmin: false, role: "PLAYER" })).toEqual({
       canView: true,
+      canInvitePlayers: true,
       canManage: false,
       canDelete: false,
+      canRequestManager: true,
     });
   });
 
-  it("shows a league to nobody outside it", () => {
+  it("gives someone outside the league nothing at all", () => {
     expect(leaguePermissions({ isSiteAdmin: false, role: null })).toEqual({
       canView: false,
+      canInvitePlayers: false,
       canManage: false,
       canDelete: false,
+      canRequestManager: false,
     });
   });
 });

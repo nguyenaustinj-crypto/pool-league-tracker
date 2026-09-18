@@ -33,7 +33,7 @@ export default async function LeaguePage({
   return (
     <div className="flex flex-col gap-6">
       <LeagueHeader leagueId={league.id} leagueName={league.name} canEdit={access.canManage} />
-      <LeagueTabs leagueId={league.id} active="standings" canManage={access.canManage} />
+      <LeagueTabs leagueId={league.id} active="standings" />
 
       <section className="flex flex-col gap-3">
         {standings.length === 0 ? (
