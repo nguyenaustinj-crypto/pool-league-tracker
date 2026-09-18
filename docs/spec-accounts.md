@@ -291,6 +291,9 @@ checks on the server first**, because actions accept direct POST requests.
 2. **Leagues and roles.** Memberships, "Create league makes you manager", the
    My leagues home, the league-ownership checks above, and members-only
    league pages. Jamey becomes manager of the existing league.
+   *Built 2026-09-18, along with league search and join requests from stage
+   3. The existing league gets its manager via "Add me as a manager" on its
+   Members page, which only site admins see.*
 3. **Joining.** League search, join requests with manager approval, invite
    links, and linking accounts to roster names.
 4. **Player score entry.** Tap-to-score cards with the ERO toggle, one-card

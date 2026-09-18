@@ -11,51 +11,38 @@ import {
 } from "@/lib/editor-token";
 import { getCurrentUser } from "@/lib/session";
 
-// Anyone can view the site. Changing anything requires being an editor:
-// signed in with Google as an admin (see src/lib/admins.ts), or, until the
-// passcode is retired, a device that entered the shared editor passcode
-// (EDITOR_PASSCODE) on /login.
+// Site admins can see and manage every league. That's anyone signed in with
+// Google as a listed admin (see src/lib/admins.ts), or, until the passcode is
+// retired, a device that entered the shared editor passcode (EDITOR_PASSCODE)
+// on /login. Everyone else gets access league by league: see src/lib/access.ts.
 
 export function editorPasscode(): string | null {
   return usablePasscode(process.env.EDITOR_PASSCODE);
 }
 
-/** Whether this request is allowed to change data. */
-export const isEditor = cache(async (): Promise<boolean> => {
+/** Whether this request comes from a site admin. */
+export const isSiteAdmin = cache(async (): Promise<boolean> => {
   if ((await getCurrentUser())?.isAdmin) return true;
   const token = (await cookies()).get(EDITOR_COOKIE)?.value;
   return verifyEditorToken(token, editorPasscode());
 });
 
-function loginPath(returnTo: string) {
-  return `/login?next=${encodeURIComponent(safeNextPath(returnTo))}`;
-}
-
-/** For edit-only pages: send viewers to sign in, then back to this page. */
-export async function requireEditorPage(returnTo: string) {
-  if (!(await isEditor())) redirect(loginPath(returnTo));
-}
-
 /**
- * Must be the first thing every data-changing server action does. Server
- * actions can be called with a direct POST request, so hiding the edit
- * buttons from viewers isn't enough on its own.
+ * Sends the visitor to sign in, then back to `returnTo`, or, if that isn't
+ * given (e.g. from a server action), back to the page they were on.
  */
-export async function requireEditor() {
-  if (await isEditor()) return;
-
-  // Send them back to the page they were on once they've signed in.
-  let returnTo = "/";
-  const referer = (await headers()).get("referer");
-  if (referer) {
+export async function redirectToLogin(returnTo?: string): Promise<never> {
+  let path = returnTo;
+  if (!path) {
+    const referer = (await headers()).get("referer");
     try {
-      const url = new URL(referer);
-      returnTo = `${url.pathname}${url.search}`;
+      const url = new URL(referer ?? "");
+      path = `${url.pathname}${url.search}`;
     } catch {
-      returnTo = "/";
+      path = "/";
     }
   }
-  redirect(loginPath(returnTo));
+  redirect(`/login?next=${encodeURIComponent(safeNextPath(path))}`);
 }
 
 export async function startEditorSession(passcode: string) {

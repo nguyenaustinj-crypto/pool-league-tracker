@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { requireLeagueView } from "@/lib/access";
 import { prisma } from "@/lib/prisma";
-import { isEditor } from "@/lib/editor";
 import MatchScoreSheet from "./MatchScoreSheet";
 
 export default async function MatchPage({
@@ -10,6 +10,9 @@ export default async function MatchPage({
   params: Promise<{ leagueId: string; matchId: string }>;
 }) {
   const { leagueId, matchId } = await params;
+  const access = await requireLeagueView(leagueId, `/leagues/${leagueId}/matches/${matchId}`);
+  const canEdit = access.canManage;
+
   const match = await prisma.match.findUnique({
     where: { id: matchId },
     include: {
@@ -29,7 +32,6 @@ export default async function MatchPage({
 
   if (!match || match.leagueId !== leagueId) notFound();
 
-  const canEdit = await isEditor();
   const homeTeamName = match.homeTeam.name;
   const awayTeamName = match.awayTeam.name;
 
@@ -37,7 +39,7 @@ export default async function MatchPage({
     <div className="flex flex-col gap-4">
       <p className="text-sm text-neutral-500">
         <Link href="/" className="underline">
-          Leagues
+          My leagues
         </Link>{" "}
         /{" "}
         <Link href={`/leagues/${leagueId}/matches`} className="underline">

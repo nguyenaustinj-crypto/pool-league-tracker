@@ -2,22 +2,62 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { requireLeagueDelete, requireLeagueManager } from "@/lib/access";
+import { isSiteAdmin, redirectToLogin } from "@/lib/editor";
 import { prisma } from "@/lib/prisma";
-import { requireEditor } from "@/lib/editor";
 import { awayIndexForRound, type PairingScore } from "@/lib/scoring";
+import { getCurrentUser } from "@/lib/session";
+
+// Every action that changes a league first checks the caller may manage
+// that league (src/lib/access.ts), then checks that every id it was handed
+// actually belongs to that league, so a manager of one league can't reach
+// into another by passing its ids. Server actions accept direct POST
+// requests, so neither check can be left to the UI.
+
+async function teamInLeague(leagueId: string, teamId: string) {
+  const team = await prisma.team.findUnique({ where: { id: teamId } });
+  if (!team || team.leagueId !== leagueId) throw new Error("That team isn't in this league.");
+  return team;
+}
+
+async function playerInLeague(leagueId: string, playerId: string) {
+  const player = await prisma.player.findUnique({
+    where: { id: playerId },
+    include: { team: true },
+  });
+  if (!player || player.team.leagueId !== leagueId) {
+    throw new Error("That player isn't in this league.");
+  }
+  return player;
+}
+
+async function matchInLeague(leagueId: string, matchId: string) {
+  const match = await prisma.match.findUnique({ where: { id: matchId } });
+  if (!match || match.leagueId !== leagueId) throw new Error("That match isn't in this league.");
+  return match;
+}
 
 export async function createLeague(formData: FormData) {
-  await requireEditor();
+  // Anyone signed in can start a league, and becomes its manager. (A site
+  // admin using the editor passcode has no account, so gets no membership.)
+  const [user, siteAdmin] = await Promise.all([getCurrentUser(), isSiteAdmin()]);
+  if (!user && !siteAdmin) return redirectToLogin();
 
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return;
 
-  await prisma.league.create({ data: { name } });
+  const league = await prisma.league.create({
+    data: {
+      name,
+      ...(user ? { memberships: { create: { userId: user.id, role: "MANAGER" as const } } } : {}),
+    },
+  });
   revalidatePath("/");
+  redirect(`/leagues/${league.id}`);
 }
 
 export async function updateLeague(leagueId: string, formData: FormData) {
-  await requireEditor();
+  await requireLeagueManager(leagueId);
 
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return;
@@ -31,7 +71,7 @@ export async function updateLeague(leagueId: string, formData: FormData) {
 }
 
 export async function deleteLeague(leagueId: string, formData: FormData) {
-  await requireEditor();
+  await requireLeagueDelete(leagueId);
 
   const league = await prisma.league.findUniqueOrThrow({ where: { id: leagueId } });
   const confirmation = String(formData.get("confirmName") ?? "").trim();
@@ -45,7 +85,7 @@ export async function deleteLeague(leagueId: string, formData: FormData) {
 }
 
 export async function createTeam(leagueId: string, formData: FormData) {
-  await requireEditor();
+  await requireLeagueManager(leagueId);
 
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return;
@@ -56,7 +96,8 @@ export async function createTeam(leagueId: string, formData: FormData) {
 }
 
 export async function updateTeam(leagueId: string, teamId: string, formData: FormData) {
-  await requireEditor();
+  await requireLeagueManager(leagueId);
+  await teamInLeague(leagueId, teamId);
 
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return;
@@ -69,7 +110,8 @@ export async function updateTeam(leagueId: string, teamId: string, formData: For
 }
 
 export async function deleteTeam(leagueId: string, teamId: string) {
-  await requireEditor();
+  await requireLeagueManager(leagueId);
+  await teamInLeague(leagueId, teamId);
 
   const matchCount = await prisma.match.count({
     where: { OR: [{ homeTeamId: teamId }, { awayTeamId: teamId }] },
@@ -87,7 +129,8 @@ export async function deleteTeam(leagueId: string, teamId: string) {
 }
 
 export async function createPlayer(leagueId: string, teamId: string, formData: FormData) {
-  await requireEditor();
+  await requireLeagueManager(leagueId);
+  await teamInLeague(leagueId, teamId);
 
   const name = String(formData.get("name") ?? "").trim();
   const rating = Number(formData.get("rating"));
@@ -99,7 +142,8 @@ export async function createPlayer(leagueId: string, teamId: string, formData: F
 }
 
 export async function updatePlayer(leagueId: string, playerId: string, formData: FormData) {
-  await requireEditor();
+  await requireLeagueManager(leagueId);
+  await playerInLeague(leagueId, playerId);
 
   const name = String(formData.get("name") ?? "").trim();
   const rating = Number(formData.get("rating"));
@@ -111,9 +155,9 @@ export async function updatePlayer(leagueId: string, playerId: string, formData:
 }
 
 export async function deletePlayer(leagueId: string, playerId: string) {
-  await requireEditor();
+  await requireLeagueManager(leagueId);
+  const player = await playerInLeague(leagueId, playerId);
 
-  const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId } });
   const pairingCount = await prisma.pairing.count({
     where: { OR: [{ homePlayerId: playerId }, { awayPlayerId: playerId }] },
   });
@@ -202,7 +246,7 @@ function roundsCreateData(
 }
 
 export async function createMatch(leagueId: string, formData: FormData) {
-  await requireEditor();
+  await requireLeagueManager(leagueId);
 
   const homeTeamId = String(formData.get("homeTeamId") ?? "");
   const awayTeamId = String(formData.get("awayTeamId") ?? "");
@@ -230,7 +274,8 @@ function sortedIds(ids: string[]) {
 }
 
 export async function updateMatch(leagueId: string, matchId: string, formData: FormData) {
-  await requireEditor();
+  await requireLeagueManager(leagueId);
+  const currentMatch = await matchInLeague(leagueId, matchId);
 
   const dateValue = String(formData.get("date") ?? "");
   const homeTeamId = String(formData.get("homeTeamId") ?? "");
@@ -239,8 +284,6 @@ export async function updateMatch(leagueId: string, matchId: string, formData: F
   const awayPlayerIds = formData.getAll("awayPlayerIds").map(String);
 
   await validateLineup(leagueId, homeTeamId, awayTeamId, homePlayerIds, awayPlayerIds);
-
-  const currentMatch = await prisma.match.findUniqueOrThrow({ where: { id: matchId } });
 
   // The edit form always submits a full lineup (pre-checked with the
   // current one), so only regenerate Rounds/Pairings if the teams, lineup,
@@ -307,7 +350,8 @@ export async function updateMatch(leagueId: string, matchId: string, formData: F
 }
 
 export async function deleteMatch(leagueId: string, matchId: string) {
-  await requireEditor();
+  await requireLeagueManager(leagueId);
+  await matchInLeague(leagueId, matchId);
 
   await prisma.match.delete({ where: { id: matchId } });
   revalidatePath(`/leagues/${leagueId}`);
@@ -328,7 +372,17 @@ export async function saveMatchScores(
   matchId: string,
   updates: PairingScoreUpdate[]
 ) {
-  await requireEditor();
+  await requireLeagueManager(leagueId);
+  await matchInLeague(leagueId, matchId);
+
+  // Every pairing being saved must belong to this match.
+  const pairingIds = [...new Set(updates.map((u) => u.pairingId))];
+  const ownPairings = await prisma.pairing.count({
+    where: { id: { in: pairingIds }, round: { matchId } },
+  });
+  if (ownPairings !== pairingIds.length) {
+    throw new Error("Those scores don't belong to this match.");
+  }
 
   await prisma.$transaction(
     updates.map((u) =>

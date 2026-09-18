@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { requireLeagueView } from "@/lib/access";
 import { prisma } from "@/lib/prisma";
-import { isEditor } from "@/lib/editor";
 import { calculateRoundScore, isRoundPlayed } from "@/lib/scoring";
 import LeagueHeader from "../LeagueHeader";
 import LeagueTabs from "../LeagueTabs";
@@ -12,10 +12,12 @@ export default async function LeagueMatchesPage({
   params: Promise<{ leagueId: string }>;
 }) {
   const { leagueId } = await params;
+  const access = await requireLeagueView(leagueId, `/leagues/${leagueId}/matches`);
+  const canEdit = access.canManage;
+
   const league = await prisma.league.findUnique({ where: { id: leagueId } });
   if (!league) notFound();
 
-  const canEdit = await isEditor();
   const matches = await prisma.match.findMany({
     where: { leagueId },
     orderBy: { date: "desc" },
@@ -29,7 +31,7 @@ export default async function LeagueMatchesPage({
   return (
     <div className="flex flex-col gap-6">
       <LeagueHeader leagueId={league.id} leagueName={league.name} canEdit={canEdit} />
-      <LeagueTabs leagueId={league.id} active="matches" />
+      <LeagueTabs leagueId={league.id} active="matches" canManage={canEdit} />
 
       <section className="flex flex-col gap-3">
         {canEdit && (

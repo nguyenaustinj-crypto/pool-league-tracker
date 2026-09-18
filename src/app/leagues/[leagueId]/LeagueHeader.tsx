@@ -13,7 +13,7 @@ export default function LeagueHeader({
     <div>
       <p className="text-sm text-neutral-500">
         <Link href="/" className="underline">
-          Leagues
+          My leagues
         </Link>
       </p>
       <div className="flex items-center justify-between">

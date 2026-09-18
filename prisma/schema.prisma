@@ -11,10 +11,12 @@ datasource db {
 }
 
 model League {
-  id      String   @id @default(cuid())
-  name    String
-  teams   Team[]
-  matches Match[]
+  id           String             @id @default(cuid())
+  name         String
+  teams        Team[]
+  matches      Match[]
+  memberships  LeagueMembership[]
+  joinRequests JoinRequest[]
 }
 
 // A persistent, named team within a league. Every Player belongs to exactly
@@ -87,23 +89,71 @@ model Pairing {
 }
 
 // ---------------------------------------------------------------------------
+// League membership. Leagues are members-only: only a league's members (and
+// site admins) can see its pages. Managers run the league; players can view
+// it. See src/lib/access.ts and docs/spec-accounts.md.
+// ---------------------------------------------------------------------------
+
+enum LeagueRole {
+  MANAGER
+  PLAYER
+}
+
+model LeagueMembership {
+  league    League     @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  leagueId  String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  role      LeagueRole
+  createdAt DateTime   @default(now())
+
+  @@id([leagueId, userId])
+  @@index([userId])
+}
+
+enum JoinRequestStatus {
+  PENDING
+  APPROVED
+  DECLINED
+}
+
+// Someone who found a league through search asking to join it. One row per
+// person per league: asking again after a decline reopens the same row.
+model JoinRequest {
+  id        String            @id @default(cuid())
+  league    League            @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  leagueId  String
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  status    JoinRequestStatus @default(PENDING)
+  createdAt DateTime          @default(now())
+  decidedAt DateTime?
+
+  @@unique([leagueId, userId])
+}
+
+// ---------------------------------------------------------------------------
 // Sign-in (Better Auth). These four models are Better Auth's own schema,
 // generated with its CLI (`npx auth@1.7.5 generate --adapter prisma
 // --dialect postgresql`); keep them in sync with that output when upgrading
-// better-auth. Google is the only sign-in method, so Account.password stays
-// empty. Who's an admin comes from the ADMIN_EMAILS env var, not the database.
+// better-auth. The only additions are User's two relation lists for league
+// membership, which Better Auth ignores. Google is the only sign-in method,
+// so Account.password stays empty. Who's a site admin comes from the
+// ADMIN_EMAILS env var, not the database.
 // ---------------------------------------------------------------------------
 
 model User {
-  id            String    @id
+  id            String             @id
   name          String
   email         String
-  emailVerified Boolean   @default(false)
+  emailVerified Boolean            @default(false)
   image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
   sessions      Session[]
   accounts      Account[]
+  memberships   LeagueMembership[]
+  joinRequests  JoinRequest[]
 
   @@unique([email])
   @@map("user")

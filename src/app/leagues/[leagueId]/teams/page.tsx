@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
+import { requireLeagueView } from "@/lib/access";
 import { createTeam } from "@/lib/actions";
-import { isEditor } from "@/lib/editor";
+import { prisma } from "@/lib/prisma";
 import LeagueHeader from "../LeagueHeader";
 import LeagueTabs from "../LeagueTabs";
 
@@ -12,6 +12,9 @@ export default async function LeagueTeamsPage({
   params: Promise<{ leagueId: string }>;
 }) {
   const { leagueId } = await params;
+  const access = await requireLeagueView(leagueId, `/leagues/${leagueId}/teams`);
+  const canEdit = access.canManage;
+
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
     include: {
@@ -20,13 +23,12 @@ export default async function LeagueTeamsPage({
   });
   if (!league) notFound();
 
-  const canEdit = await isEditor();
   const createTeamInLeague = createTeam.bind(null, league.id);
 
   return (
     <div className="flex flex-col gap-6">
       <LeagueHeader leagueId={league.id} leagueName={league.name} canEdit={canEdit} />
-      <LeagueTabs leagueId={league.id} active="teams" />
+      <LeagueTabs leagueId={league.id} active="teams" canManage={canEdit} />
 
       <section className="flex flex-col gap-3">
         <ul className="flex flex-col gap-2">

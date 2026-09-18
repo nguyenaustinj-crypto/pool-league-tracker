@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
+import { requireLeagueManagerPage } from "@/lib/access";
 import { updateLeague, deleteLeague } from "@/lib/actions";
-import { requireEditorPage } from "@/lib/editor";
+import { prisma } from "@/lib/prisma";
 import DeleteConfirmForm from "./DeleteConfirmForm";
 
 export default async function EditLeaguePage({
@@ -11,7 +11,8 @@ export default async function EditLeaguePage({
   params: Promise<{ leagueId: string }>;
 }) {
   const { leagueId } = await params;
-  await requireEditorPage(`/leagues/${leagueId}/edit`);
+  const access = await requireLeagueManagerPage(leagueId, `/leagues/${leagueId}/edit`);
+
   const league = await prisma.league.findUnique({ where: { id: leagueId } });
   if (!league) notFound();
 
@@ -23,7 +24,7 @@ export default async function EditLeaguePage({
       <div>
         <p className="text-sm text-neutral-500">
           <Link href="/" className="underline">
-            Leagues
+            My leagues
           </Link>{" "}
           /{" "}
           <Link href={`/leagues/${league.id}`} className="underline">
@@ -49,14 +50,21 @@ export default async function EditLeaguePage({
         </button>
       </form>
 
-      <section className="flex flex-col gap-3 rounded-lg border border-red-300 p-4">
-        <h2 className="font-semibold text-red-700">Delete this league</h2>
-        <p className="text-sm text-neutral-600">
-          This permanently deletes {league.name}, every player in it, and every match ever
-          recorded for it. There&apos;s no undo. Type the league&apos;s name to confirm.
+      {access.canDelete ? (
+        <section className="flex flex-col gap-3 rounded-lg border border-red-300 p-4">
+          <h2 className="font-semibold text-red-700">Delete this league</h2>
+          <p className="text-sm text-neutral-600">
+            This permanently deletes {league.name}, every player in it, and every match ever
+            recorded for it. There&apos;s no undo. Type the league&apos;s name to confirm.
+          </p>
+          <DeleteConfirmForm action={deleteThisLeague} expectedName={league.name} />
+        </section>
+      ) : (
+        <p className="text-sm text-neutral-500">
+          Deleting a league wipes every match ever recorded for it, so only site admins can do
+          it.
         </p>
-        <DeleteConfirmForm action={deleteThisLeague} expectedName={league.name} />
-      </section>
+      )}
     </div>
   );
 }

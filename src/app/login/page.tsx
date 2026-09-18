@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import GoogleSignInButton from "@/components/GoogleSignInButton";
 import { signInConfigured } from "@/lib/auth";
-import { editorPasscode, isEditor } from "@/lib/editor";
+import { editorPasscode, isSiteAdmin } from "@/lib/editor";
 import { signOut } from "@/lib/editor-actions";
 import { safeNextPath } from "@/lib/editor-token";
 import { getCurrentUser } from "@/lib/session";
@@ -15,9 +15,9 @@ export const metadata: Metadata = {
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const { next, error } = await searchParams;
   const returnTo = safeNextPath(next);
-  const [user, canEdit] = await Promise.all([getCurrentUser(), isEditor()]);
+  const [user, siteAdmin] = await Promise.all([getCurrentUser(), isSiteAdmin()]);
 
-  if (user || canEdit) {
+  if (user || siteAdmin) {
     return (
       <div className="flex flex-col gap-4">
         <h1 className="text-xl font-bold">You&apos;re signed in</h1>
@@ -27,18 +27,9 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
               Signed in as <span className="font-medium">{user.name}</span> ({user.email}).
             </>
           ) : (
-            "Signed in with the editor passcode."
+            "Signed in with the editor passcode, as a site admin."
           )}
         </p>
-        {canEdit ? (
-          <p className="text-neutral-600">
-            You can add and change leagues, teams, players, and scores.
-          </p>
-        ) : (
-          <p className="rounded-lg border bg-neutral-50 p-4 text-sm text-neutral-600">
-            You can view everything. For now, only league admins can add or change things.
-          </p>
-        )}
         <div className="flex flex-wrap gap-3">
           <Link
             href={returnTo}
@@ -63,7 +54,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
     <div className="flex flex-col gap-4">
       <h1 className="text-xl font-bold">Sign in</h1>
       <p className="text-neutral-600">
-        Anyone can view standings and scores. Sign in to add or change them.
+        Sign in to see your leagues, find new ones, and ask to join.
       </p>
 
       {error === "google" && (

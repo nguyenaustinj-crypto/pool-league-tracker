@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
+import { requireLeagueManagerPage } from "@/lib/access";
 import { deleteMatch } from "@/lib/actions";
-import { requireEditorPage } from "@/lib/editor";
+import { prisma } from "@/lib/prisma";
 import MatchEditForm from "./MatchEditForm";
 
 export default async function EditMatchPage({
@@ -11,7 +11,8 @@ export default async function EditMatchPage({
   params: Promise<{ leagueId: string; matchId: string }>;
 }) {
   const { leagueId, matchId } = await params;
-  await requireEditorPage(`/leagues/${leagueId}/matches/${matchId}/edit`);
+  await requireLeagueManagerPage(leagueId, `/leagues/${leagueId}/matches/${matchId}/edit`);
+
   const match = await prisma.match.findUnique({
     where: { id: matchId },
     include: {
@@ -47,7 +48,7 @@ export default async function EditMatchPage({
       <div>
         <p className="text-sm text-neutral-500">
           <Link href="/" className="underline">
-            Leagues
+            My leagues
           </Link>{" "}
           /{" "}
           <Link href={`/leagues/${leagueId}/matches`} className="underline">
