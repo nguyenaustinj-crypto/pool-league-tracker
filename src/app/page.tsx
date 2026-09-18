@@ -42,7 +42,8 @@ export default async function HomePage() {
   );
 
   const startLeague = (
-    <details className="rounded-lg border p-4">
+    // Open from the start for someone with no leagues yet.
+    <details className="rounded-lg border p-4" open={memberships.length === 0}>
       <summary className="cursor-pointer font-semibold">Start a new league</summary>
       <p className="mt-2 text-sm text-neutral-500">
         You&apos;ll be its manager: you add the teams and players, set up matches, and decide who

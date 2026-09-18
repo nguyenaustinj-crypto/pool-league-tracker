@@ -56,7 +56,8 @@ export async function createLeague(formData: FormData) {
     },
   });
   revalidatePath("/");
-  redirect(`/leagues/${league.id}`);
+  // Straight to inviting people (which they can skip).
+  redirect(`/leagues/${league.id}/setup`);
 }
 
 export async function updateLeague(leagueId: string, formData: FormData) {

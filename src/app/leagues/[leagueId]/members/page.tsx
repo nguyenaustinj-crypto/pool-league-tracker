@@ -1,19 +1,16 @@
 import { notFound } from "next/navigation";
-import InviteLinkBox from "@/components/InviteLinkBox";
-import ManagerInviteButton from "@/components/ManagerInviteButton";
 import { requireLeagueView } from "@/lib/access";
 import { siteOrigin } from "@/lib/invites";
 import {
   addMeAsManager,
   approveJoinRequest,
-  createManagerInvite,
   declineJoinRequest,
   removeMember,
   requestManagerRole,
-  resetPlayerInviteLink,
   setMemberRole,
 } from "@/lib/membership-actions";
 import { prisma } from "@/lib/prisma";
+import InvitePanel from "../InvitePanel";
 import LeagueHeader from "../LeagueHeader";
 import LeagueTabs from "../LeagueTabs";
 
@@ -72,46 +69,13 @@ export default async function LeagueMembersPage({
       )}
 
       {access.canInvitePlayers && (
-        <section className="flex flex-col gap-3 rounded-lg border p-4">
-          <div>
-            <h2 className="font-semibold">Invite players</h2>
-            <p className="text-sm text-neutral-500">
-              Anyone with this link can join {league.name} as a player. Send it by text or email.
-            </p>
-          </div>
-          {playerInviteUrl ? (
-            <InviteLinkBox
-              url={playerInviteUrl}
-              shareText={`Join ${league.name} on Pool League Tracker.`}
-            />
-          ) : access.canManage ? (
-            <form action={resetPlayerInviteLink.bind(null, league.id)}>
-              <button type="submit" className={primaryButton}>
-                Create the invite link
-              </button>
-            </form>
-          ) : (
-            <p className="text-sm text-neutral-500">
-              There&apos;s no invite link yet. Ask one of the league&apos;s managers to create it.
-            </p>
-          )}
-          {playerInviteUrl && access.canManage && (
-            <form action={resetPlayerInviteLink.bind(null, league.id)}>
-              <button type="submit" className="text-sm text-neutral-500 underline">
-                Reset the link (the old one stops working)
-              </button>
-            </form>
-          )}
-
-          {access.canManage && (
-            <div className="flex flex-col gap-2 border-t pt-3">
-              <h3 className="font-medium">Invite a manager</h3>
-              <ManagerInviteButton
-                action={createManagerInvite.bind(null, league.id)}
-                leagueName={league.name}
-              />
-            </div>
-          )}
+        <section className="rounded-lg border p-4">
+          <InvitePanel
+            leagueId={league.id}
+            leagueName={league.name}
+            playerInviteUrl={playerInviteUrl}
+            canManage={access.canManage}
+          />
         </section>
       )}
 
