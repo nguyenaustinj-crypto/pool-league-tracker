@@ -286,6 +286,8 @@ checks on the server first**, because actions accept direct POST requests.
    table. Admins get
    today's editor powers, and the passcode is removed once admin sign-in is
    verified live. Leagues stay publicly viewable during this stage.
+   *Built 2026-09-18 and verified locally; the passcode still works as a
+   fallback until Google sign-in is proven on the live site.*
 2. **Leagues and roles.** Memberships, "Create league makes you manager", the
    My leagues home, the league-ownership checks above, and members-only
    league pages. Jamey becomes manager of the existing league.

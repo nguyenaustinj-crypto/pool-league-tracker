@@ -9,16 +9,20 @@ import {
   usablePasscode,
   verifyEditorToken,
 } from "@/lib/editor-token";
+import { getCurrentUser } from "@/lib/session";
 
-// Anyone can view the site. Adding or changing anything requires the shared
-// editor passcode (EDITOR_PASSCODE), entered once per device on /login.
+// Anyone can view the site. Changing anything requires being an editor:
+// signed in with Google as an admin (see src/lib/admins.ts), or, until the
+// passcode is retired, a device that entered the shared editor passcode
+// (EDITOR_PASSCODE) on /login.
 
 export function editorPasscode(): string | null {
   return usablePasscode(process.env.EDITOR_PASSCODE);
 }
 
-/** Whether this request comes from a device that has entered the passcode. */
+/** Whether this request is allowed to change data. */
 export const isEditor = cache(async (): Promise<boolean> => {
+  if ((await getCurrentUser())?.isAdmin) return true;
   const token = (await cookies()).get(EDITOR_COOKIE)?.value;
   return verifyEditorToken(token, editorPasscode());
 });

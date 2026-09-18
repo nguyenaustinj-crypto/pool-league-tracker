@@ -1,13 +1,17 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { getAuth } from "@/lib/auth";
 import { editorPasscode, endEditorSession, startEditorSession } from "@/lib/editor";
 import { passcodeMatches, safeNextPath } from "@/lib/editor-token";
+import { getCurrentUser } from "@/lib/session";
 
 export interface SignInState {
   error: string | null;
 }
 
+/** Signs in with the shared editor passcode (the fallback until it's retired). */
 export async function signIn(_prevState: SignInState, formData: FormData): Promise<SignInState> {
   const passcode = editorPasscode();
   if (!passcode) {
@@ -25,7 +29,12 @@ export async function signIn(_prevState: SignInState, formData: FormData): Promi
   redirect(safeNextPath(formData.get("next")));
 }
 
+/** Signs this device out of everything: Google sign-in and the editor passcode. */
 export async function signOut() {
+  const auth = getAuth();
+  if (auth && (await getCurrentUser())) {
+    await auth.api.signOut({ headers: await headers() });
+  }
   await endEditorSession();
   redirect("/");
 }

@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import { isEditor } from "@/lib/editor";
 import { signOut } from "@/lib/editor-actions";
+import { getCurrentUser } from "@/lib/session";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -26,7 +27,7 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  const canEdit = await isEditor();
+  const [user, canEdit] = await Promise.all([getCurrentUser(), isEditor()]);
 
   return (
     <html
@@ -42,7 +43,12 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             <Link href="/" className="ml-auto hover:underline">
               Leagues
             </Link>
-            {canEdit ? (
+            {user && (
+              <span className="hidden max-w-32 truncate text-neutral-300 sm:inline">
+                {user.name.split(" ")[0]}
+              </span>
+            )}
+            {user || canEdit ? (
               <form action={signOut}>
                 <button type="submit" className="hover:underline">
                   Sign out
@@ -50,7 +56,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
               </form>
             ) : (
               <Link href="/login" className="hover:underline">
-                Editor sign in
+                Sign in
               </Link>
             )}
           </nav>
