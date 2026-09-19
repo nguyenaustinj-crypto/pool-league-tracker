@@ -77,8 +77,18 @@ export default async function LeagueMatchesPage({
                     <div className="font-medium">
                       {match.homeTeam.name} vs {match.awayTeam.name}
                     </div>
-                    <div className="text-sm text-neutral-500">
+                    <div className="flex flex-wrap items-center gap-2 text-sm text-neutral-500">
                       {new Date(match.date).toLocaleDateString()}
+                      {match.rounds.some((r) => r.pairings.some((p) => p.status === "ENTERED")) && (
+                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800">
+                          Needs confirming
+                        </span>
+                      )}
+                      {match.lockedAt && (
+                        <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-xs font-medium text-neutral-600">
+                          Locked
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="text-lg font-bold tabular-nums">

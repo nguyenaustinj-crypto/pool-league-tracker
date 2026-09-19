@@ -6,7 +6,8 @@ import { requireLeagueDelete, requireLeagueManager } from "@/lib/access";
 import { isSiteAdmin, redirectToLogin } from "@/lib/editor";
 import { newInviteToken } from "@/lib/invite-token";
 import { prisma } from "@/lib/prisma";
-import { awayIndexForRound, type PairingScore } from "@/lib/scoring";
+import { cardScoresOf, type CardScores, type CardStatus } from "@/lib/score-entry";
+import { awayIndexForRound } from "@/lib/scoring";
 import { getCurrentUser } from "@/lib/session";
 
 // Every action that changes a league first checks the caller may manage
@@ -219,7 +220,12 @@ async function validateLineup(
 // wiping the whole match. Round 1 pairings (home[i] vs away[i]) are always
 // stable across a table-count change; later rounds are stable only where the
 // round-robin rotation happens to still line up.
-type PreservedScores = Map<string, PairingScore>;
+// Each card's status travels with its scores. Its edit history doesn't: the
+// old pairings (and their history) are deleted when the lineup changes.
+type PreservedScores = Map<
+  string,
+  CardScores & { status: CardStatus; enteredById: string | null; confirmedById: string | null }
+>;
 
 function pairingKey(roundNumber: number, homePlayerId: string, awayPlayerId: string) {
   return `${roundNumber}:${homePlayerId}:${awayPlayerId}`;
@@ -315,10 +321,10 @@ export async function updateMatch(leagueId: string, matchId: string, formData: F
     for (const round of currentRounds) {
       for (const pairing of round.pairings) {
         preserved.set(pairingKey(round.roundNumber, pairing.homePlayerId, pairing.awayPlayerId), {
-          homeGame1: pairing.homeGame1,
-          homeGame2: pairing.homeGame2,
-          awayGame1: pairing.awayGame1,
-          awayGame2: pairing.awayGame2,
+          ...cardScoresOf(pairing),
+          status: pairing.status,
+          enteredById: pairing.enteredById,
+          confirmedById: pairing.confirmedById,
         });
       }
     }
@@ -363,49 +369,5 @@ export async function deleteMatch(leagueId: string, matchId: string) {
   redirect(`/leagues/${leagueId}/matches`);
 }
 
-export interface PairingScoreUpdate {
-  pairingId: string;
-  homeGame1: number;
-  homeGame2: number;
-  awayGame1: number;
-  awayGame2: number;
-}
-
-export async function saveMatchScores(
-  leagueId: string,
-  matchId: string,
-  updates: PairingScoreUpdate[]
-) {
-  await requireLeagueManager(leagueId);
-  await matchInLeague(leagueId, matchId);
-
-  // Every pairing being saved must belong to this match.
-  const pairingIds = [...new Set(updates.map((u) => u.pairingId))];
-  const ownPairings = await prisma.pairing.count({
-    where: { id: { in: pairingIds }, round: { matchId } },
-  });
-  if (ownPairings !== pairingIds.length) {
-    throw new Error("Those scores don't belong to this match.");
-  }
-
-  await prisma.$transaction(
-    updates.map((u) =>
-      prisma.pairing.update({
-        where: { id: u.pairingId },
-        data: {
-          homeGame1: u.homeGame1,
-          homeGame2: u.homeGame2,
-          awayGame1: u.awayGame1,
-          awayGame2: u.awayGame2,
-        },
-      })
-    ),
-    // Prisma Postgres is a remote connection with real round-trip latency;
-    // the 2s/5s defaults for acquiring/running a transaction are too tight
-    // for a multi-table batch update over it.
-    { maxWait: 10_000, timeout: 20_000 }
-  );
-  revalidatePath(`/leagues/${leagueId}`);
-  revalidatePath(`/leagues/${leagueId}/matches`);
-  revalidatePath(`/leagues/${leagueId}/matches/${matchId}`);
-}
+// Scores are entered one card at a time: see src/lib/score-actions.ts. (The
+// old whole-match save could overwrite another table's scores.)

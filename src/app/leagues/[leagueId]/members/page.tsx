@@ -10,6 +10,7 @@ import {
   setMemberRole,
 } from "@/lib/membership-actions";
 import { prisma } from "@/lib/prisma";
+import { linkMemberToPlayer, unlinkPlayer } from "@/lib/roster-actions";
 import InvitePanel from "../InvitePanel";
 import LeagueHeader from "../LeagueHeader";
 import LeagueTabs from "../LeagueTabs";
@@ -42,6 +43,15 @@ export default async function LeagueMembersPage({
     },
   });
   if (!league) notFound();
+
+  // Which roster name each member plays as, and which names are still open.
+  const rosterNames = await prisma.player.findMany({
+    where: { team: { leagueId } },
+    select: { id: true, name: true, userId: true, team: { select: { name: true } } },
+    orderBy: [{ team: { name: "asc" } }, { name: "asc" }],
+  });
+  const playsAs = new Map(rosterNames.filter((p) => p.userId).map((p) => [p.userId!, p]));
+  const openNames = rosterNames.filter((p) => !p.userId);
 
   const playerInviteUrl = league.inviteToken
     ? `${await siteOrigin()}/invite/${league.inviteToken}`
@@ -144,7 +154,7 @@ export default async function LeagueMembersPage({
           <h2 className="font-semibold">Members ({league.memberships.length})</h2>
           <p className="text-sm text-neutral-500">
             Managers can change rosters, matches, and scores, and let people in. Players can view
-            the league.
+            the league, and enter scores for their own table once they&apos;ve picked their name.
           </p>
         </div>
         {league.memberships.length === 0 ? (
@@ -155,51 +165,92 @@ export default async function LeagueMembersPage({
               const isManager = member.role === "MANAGER";
               const isLastManager = isManager && managerCount === 1;
               const isYou = member.userId === access.user?.id;
+              const rosterName = playsAs.get(member.userId);
               return (
-                <li
-                  key={member.userId}
-                  className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="truncate font-medium">
-                        {member.user.name}
-                        {isYou && <span className="text-neutral-500"> (you)</span>}
-                      </span>
-                      <span className="shrink-0 rounded bg-neutral-100 px-1.5 py-0.5 text-xs text-neutral-600">
-                        {isManager ? "Manager" : "Player"}
-                      </span>
-                    </div>
-                    {access.canManage && (
-                      <div className="truncate text-sm text-neutral-500">{member.user.email}</div>
-                    )}
-                  </div>
-                  {access.canManage &&
-                    (isLastManager ? (
-                      <span className="shrink-0 text-xs text-neutral-500">Only manager</span>
-                    ) : (
-                      <div className="flex shrink-0 gap-2">
-                        <form
-                          action={setMemberRole.bind(
-                            null,
-                            league.id,
-                            member.userId,
-                            isManager ? "PLAYER" : "MANAGER"
-                          )}
-                        >
-                          <button type="submit" className={smallButton}>
-                            {isManager ? "Make player" : "Make manager"}
-                          </button>
-                        </form>
-                        <form action={removeMember.bind(null, league.id, member.userId)}>
-                          <button
-                            type="submit"
-                            className="rounded-md border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50"
-                          >
-                            Remove
-                          </button>
-                        </form>
+                <li key={member.userId} className="flex flex-col gap-2 rounded-lg border p-3">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate font-medium">
+                          {member.user.name}
+                          {isYou && <span className="text-neutral-500"> (you)</span>}
+                        </span>
+                        <span className="shrink-0 rounded bg-neutral-100 px-1.5 py-0.5 text-xs text-neutral-600">
+                          {isManager ? "Manager" : "Player"}
+                        </span>
                       </div>
+                      {access.canManage && (
+                        <div className="truncate text-sm text-neutral-500">{member.user.email}</div>
+                      )}
+                      <div className="text-sm text-neutral-500">
+                        {rosterName
+                          ? `Plays as ${rosterName.name} (${rosterName.team.name})`
+                          : "Hasn't picked a roster name"}
+                      </div>
+                    </div>
+                    {access.canManage &&
+                      (isLastManager ? (
+                        <span className="shrink-0 text-xs text-neutral-500">Only manager</span>
+                      ) : (
+                        <div className="flex shrink-0 gap-2">
+                          <form
+                            action={setMemberRole.bind(
+                              null,
+                              league.id,
+                              member.userId,
+                              isManager ? "PLAYER" : "MANAGER"
+                            )}
+                          >
+                            <button type="submit" className={smallButton}>
+                              {isManager ? "Make player" : "Make manager"}
+                            </button>
+                          </form>
+                          <form action={removeMember.bind(null, league.id, member.userId)}>
+                            <button
+                              type="submit"
+                              className="rounded-md border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50"
+                            >
+                              Remove
+                            </button>
+                          </form>
+                        </div>
+                      ))}
+                  </div>
+
+                  {access.canManage &&
+                    (rosterName ? (
+                      <form action={unlinkPlayer.bind(null, league.id, rosterName.id)}>
+                        <button type="submit" className="text-sm text-neutral-500 underline">
+                          Unlink from {rosterName.name}
+                        </button>
+                      </form>
+                    ) : (
+                      openNames.length > 0 && (
+                        <form
+                          action={linkMemberToPlayer.bind(null, league.id, member.userId)}
+                          className="flex flex-col gap-2 sm:flex-row"
+                        >
+                          <select
+                            name="playerId"
+                            required
+                            defaultValue=""
+                            aria-label={`Roster name for ${member.user.name}`}
+                            className="flex-1 rounded-md border px-3 py-1.5 text-sm"
+                          >
+                            <option value="" disabled>
+                              Link to a roster name…
+                            </option>
+                            {openNames.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name} ({p.team.name})
+                              </option>
+                            ))}
+                          </select>
+                          <button type="submit" className={smallButton}>
+                            Link
+                          </button>
+                        </form>
+                      )
                     ))}
                 </li>
               );

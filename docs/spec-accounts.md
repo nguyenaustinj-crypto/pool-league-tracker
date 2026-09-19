@@ -299,11 +299,18 @@ checks on the server first**, because actions accept direct POST requests.
    member can share and that joins people directly (a manager can reset
    it); **manager invites** are one-time links (14 days, hashed) that only
    managers create. Players can also **ask to become a manager**, answered
-   on the Members page. Linking accounts to roster names is still to do.*
+   on the Members page.*
+   *Roster-name linking built 2026-09-18, also simplified: a member claims
+   their own name with one tap ("Which player are you?"), and managers can
+   link or unlink anyone from the Members page, instead of a separate
+   invite per name.*
 3. **Joining.** League search, join requests with manager approval, invite
    links, and linking accounts to roster names.
 4. **Player score entry.** Tap-to-score cards with the ERO toggle, one-card
    saves with version checks, confirmation, edit history, match locking.
+   *Built 2026-09-18. Both games are required to save a card. History is
+   shown under each card; there's no one-click undo (a manager just
+   re-enters the card).*
 5. **Polish.** Home-screen install, "my matches" / "my stats" for players,
    and the ERO and points leaderboards.
 

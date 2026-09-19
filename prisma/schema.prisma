@@ -43,9 +43,17 @@ model Player {
   rating Float
   team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
   teamId String
+  // The account this roster name belongs to, once the person claims it (or a
+  // manager links it). At most one roster name per account per league,
+  // enforced in src/lib/roster-actions.ts. It's what lets a player enter the
+  // scores for their own table.
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId String?
 
   homePairings Pairing[] @relation("HomePlayer")
   awayPairings Pairing[] @relation("AwayPlayer")
+
+  @@index([userId])
 }
 
 // A single match sheet: a "home" Team and an "away" Team, each fielding one
@@ -61,6 +69,10 @@ model Match {
   awayTeam   Team     @relation("AwayTeam", fields: [awayTeamId], references: [id], onDelete: Cascade)
   awayTeamId String
   rounds     Round[]
+  // Set when a manager locks the match; after that only managers can
+  // change its scores.
+  lockedAt   DateTime?
+  lockedById String?
 }
 
 model Round {
@@ -91,6 +103,45 @@ model Pairing {
   homeGame2    Float  @default(0)
   awayGame1    Float  @default(0)
   awayGame2    Float  @default(0)
+  // EROs (a game won on the winner's first turn, before any balls were
+  // pocketed) are marked, not scored. See src/lib/score-entry.ts.
+  homeGame1Ero Boolean @default(false)
+  homeGame2Ero Boolean @default(false)
+  awayGame1Ero Boolean @default(false)
+  awayGame2Ero Boolean @default(false)
+
+  // The score card's state: EMPTY until someone enters it; ENTERED by one of
+  // the two players, waiting on the other to confirm; CONFIRMED by the other
+  // player, or entered by a manager.
+  status        PairingStatus @default(EMPTY)
+  enteredById   String?
+  confirmedById String?
+  // Bumped on every save, so a save made from an older copy of the card is
+  // refused instead of overwriting someone else's entry.
+  version       Int           @default(0)
+  edits         ScoreEdit[]
+}
+
+enum PairingStatus {
+  EMPTY
+  ENTERED
+  CONFIRMED
+}
+
+// Every change to a score card: who, when, and what it said before and after.
+model ScoreEdit {
+  id        String   @id @default(cuid())
+  pairing   Pairing  @relation(fields: [pairingId], references: [id], onDelete: Cascade)
+  pairingId String
+  // Null for a site admin using the editor passcode, who has no account.
+  userId    String?
+  before    Json
+  after     Json
+  // e.g. "forfeit"
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([pairingId])
 }
 
 // ---------------------------------------------------------------------------
@@ -161,8 +212,8 @@ model ManagerInvite {
 // Sign-in (Better Auth). These four models are Better Auth's own schema,
 // generated with its CLI (`npx auth@1.7.5 generate --adapter prisma
 // --dialect postgresql`); keep them in sync with that output when upgrading
-// better-auth. The only additions are User's two relation lists for league
-// membership, which Better Auth ignores. Google is the only sign-in method,
+// better-auth. The only additions are User's relation lists for league
+// membership and roster names, which Better Auth ignores. Google is the only sign-in method,
 // so Account.password stays empty. Who's a site admin comes from the
 // ADMIN_EMAILS env var, not the database.
 // ---------------------------------------------------------------------------
@@ -179,6 +230,7 @@ model User {
   accounts      Account[]
   memberships   LeagueMembership[]
   joinRequests  JoinRequest[]
+  players       Player[]
 
   @@unique([email])
   @@map("user")

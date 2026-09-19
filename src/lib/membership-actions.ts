@@ -143,6 +143,8 @@ export async function removeMember(leagueId: string, userId: string) {
 
   await prisma.$transaction([
     prisma.leagueMembership.delete({ where: { leagueId_userId: { leagueId, userId } } }),
+    // Free up the roster name they'd claimed in this league.
+    prisma.player.updateMany({ where: { userId, team: { leagueId } }, data: { userId: null } }),
     // Don't leave a request behind that would let them straight back in.
     prisma.joinRequest.updateMany({
       where: { leagueId, userId, status: "PENDING" },

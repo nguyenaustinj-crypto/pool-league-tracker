@@ -2,7 +2,16 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireLeagueView } from "@/lib/access";
 import { prisma } from "@/lib/prisma";
+import { setMatchLock } from "@/lib/score-actions";
+import {
+  canConfirmCard,
+  canEditCard,
+  cardScoresOf,
+  formatCardScores,
+  type CardScores,
+} from "@/lib/score-entry";
 import MatchScoreSheet from "./MatchScoreSheet";
+import type { CardView } from "./ScoreCard";
 
 export default async function MatchPage({
   params,
@@ -11,7 +20,8 @@ export default async function MatchPage({
 }) {
   const { leagueId, matchId } = await params;
   const access = await requireLeagueView(leagueId, `/leagues/${leagueId}/matches/${matchId}`);
-  const canEdit = access.canManage;
+  const isManager = access.canManage;
+  const viewerUserId = access.user?.id ?? null;
 
   const match = await prisma.match.findUnique({
     where: { id: matchId },
@@ -23,7 +33,11 @@ export default async function MatchPage({
         orderBy: { roundNumber: "asc" },
         include: {
           pairings: {
-            include: { homePlayer: true, awayPlayer: true },
+            include: {
+              homePlayer: true,
+              awayPlayer: true,
+              edits: { orderBy: { createdAt: "desc" }, take: 20 },
+            },
           },
         },
       },
@@ -31,6 +45,69 @@ export default async function MatchPage({
   });
 
   if (!match || match.leagueId !== leagueId) notFound();
+
+  // Names for everyone who entered, confirmed, or changed a card.
+  const pairings = match.rounds.flatMap((r) => r.pairings);
+  const userIds = new Set<string>();
+  for (const p of pairings) {
+    for (const id of [p.enteredById, p.confirmedById, ...p.edits.map((e) => e.userId)]) {
+      if (id) userIds.add(id);
+    }
+  }
+  const users = await prisma.user.findMany({
+    where: { id: { in: [...userIds] } },
+    select: { id: true, name: true },
+  });
+  const userName = new Map(users.map((u) => [u.id, u.name]));
+  // A null id is a site admin using the editor passcode, who has no account.
+  const nameOf = (id: string | null) => (id ? (userName.get(id) ?? "A former member") : "A site admin");
+
+  const locked = match.lockedAt !== null;
+  const unconfirmed = pairings.filter((p) => p.status === "ENTERED").length;
+
+  const rounds = match.rounds.map((round) => ({
+    id: round.id,
+    roundNumber: round.roundNumber,
+    cards: round.pairings.map((p): CardView => {
+      const homeUserId = p.homePlayer.userId;
+      const awayUserId = p.awayPlayer.userId;
+      // Who an entered card is waiting on: the other player, if they have an
+      // account; otherwise only a manager can confirm it.
+      const otherSide = p.enteredById === homeUserId ? p.awayPlayer : p.homePlayer;
+      return {
+        id: p.id,
+        version: p.version,
+        status: p.status,
+        homeName: p.homePlayer.name,
+        awayName: p.awayPlayer.name,
+        homeHandicap: p.homePlayer.rating,
+        awayHandicap: p.awayPlayer.rating,
+        isMine: viewerUserId !== null && (viewerUserId === homeUserId || viewerUserId === awayUserId),
+        scores: cardScoresOf(p),
+        enteredByName: p.enteredById ? nameOf(p.enteredById) : null,
+        confirmedByName: p.confirmedById ? nameOf(p.confirmedById) : null,
+        waitingOnName: otherSide.userId ? otherSide.name : "a league manager",
+        canEdit: canEditCard({ isManager, viewerUserId, homeUserId, awayUserId, locked }),
+        canConfirm: canConfirmCard({
+          isManager,
+          viewerUserId,
+          homeUserId,
+          awayUserId,
+          locked,
+          status: p.status,
+          enteredById: p.enteredById,
+        }),
+        history: p.edits.map((e) => ({
+          id: e.id,
+          who: nameOf(e.userId),
+          when: e.createdAt.toISOString(),
+          before: formatCardScores(e.before as CardScores),
+          after: formatCardScores(e.after as CardScores),
+          note: e.note,
+        })),
+      };
+    }),
+  }));
 
   const homeTeamName = match.homeTeam.name;
   const awayTeamName = match.awayTeam.name;
@@ -50,7 +127,7 @@ export default async function MatchPage({
         <h1 className="text-xl font-bold">
           {homeTeamName} vs {awayTeamName}
         </h1>
-        {canEdit && (
+        {isManager && (
           <Link
             href={`/leagues/${leagueId}/matches/${matchId}/edit`}
             className="text-sm text-neutral-500 underline"
@@ -61,13 +138,35 @@ export default async function MatchPage({
       </div>
       <p className="text-sm text-neutral-500">{new Date(match.date).toLocaleDateString()}</p>
 
+      {(locked || isManager) && (
+        <div className="flex flex-col gap-2 rounded-lg border bg-neutral-50 p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+          <span className="text-neutral-700">
+            {locked
+              ? "This match is locked. Only league managers can change its scores."
+              : unconfirmed > 0
+                ? `${unconfirmed} table${unconfirmed === 1 ? "" : "s"} still need${unconfirmed === 1 ? "s" : ""} confirming.`
+                : "Lock the match once the scores are final."}
+          </span>
+          {isManager && (
+            <form action={setMatchLock.bind(null, leagueId, matchId, !locked)}>
+              <button
+                type="submit"
+                className="rounded-md border bg-white px-3 py-1.5 text-sm font-medium hover:bg-neutral-50"
+              >
+                {locked ? "Unlock" : "Lock match"}
+              </button>
+            </form>
+          )}
+        </div>
+      )}
+
       <MatchScoreSheet
         leagueId={leagueId}
         matchId={match.id}
         homeTeamName={homeTeamName}
         awayTeamName={awayTeamName}
-        rounds={match.rounds}
-        canEdit={canEdit}
+        rounds={rounds}
+        isManager={isManager}
       />
     </div>
   );

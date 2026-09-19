@@ -50,7 +50,14 @@ export default async function TeamPage({
               key={player.id}
               className="flex items-center justify-between rounded-lg border p-3"
             >
-              <span>{player.name}</span>
+              <span>
+                {player.name}
+                {access.user && player.userId === access.user.id && (
+                  <span className="ml-2 rounded bg-neutral-900 px-1.5 py-0.5 text-xs font-medium text-white">
+                    You
+                  </span>
+                )}
+              </span>
               <span className="flex items-center gap-3 text-sm text-neutral-500">
                 Handicap {player.rating}
                 {canEdit && (

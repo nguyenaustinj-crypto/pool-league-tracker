@@ -1,106 +1,39 @@
-"use client";
+import { amountOverCap, calculateRoundScore, HANDICAP_CAP, isRoundPlayed } from "@/lib/scoring";
+import ScoreCard, { type CardView } from "./ScoreCard";
 
-import { useMemo, useState, useTransition } from "react";
-import { saveMatchScores, type PairingScoreUpdate } from "@/lib/actions";
-import {
-  amountOverCap,
-  calculateRoundScore,
-  HANDICAP_CAP,
-  isRoundPlayed,
-  type PairingScore,
-} from "@/lib/scoring";
-
-interface PlayerInfo {
-  id: string;
-  name: string;
-  rating: number;
-}
-
-interface PairingData extends PairingScore {
-  id: string;
-  homePlayer: PlayerInfo;
-  awayPlayer: PlayerInfo;
-}
-
-interface RoundData {
-  id: string;
-  roundNumber: number;
-  pairings: PairingData[];
-}
-
-const emptyScores = { homeGame1: 0, homeGame2: 0, awayGame1: 0, awayGame2: 0 };
-
+// The match's score sheet: running totals, and one card per table per round.
+// Each card saves on its own (ScoreCard), so two tables entering scores at
+// the same time never overwrite each other.
 export default function MatchScoreSheet({
   leagueId,
   matchId,
   homeTeamName,
   awayTeamName,
   rounds,
-  canEdit,
+  isManager,
 }: {
   leagueId: string;
   matchId: string;
   homeTeamName: string;
   awayTeamName: string;
-  rounds: RoundData[];
-  /** Viewers see the same sheet, with scores as plain numbers and no save button. */
-  canEdit: boolean;
+  rounds: { id: string; roundNumber: number; cards: CardView[] }[];
+  isManager: boolean;
 }) {
-  const [scores, setScores] = useState<Record<string, PairingScore>>(() => {
-    const initial: Record<string, PairingScore> = {};
-    for (const round of rounds) {
-      for (const pairing of round.pairings) {
-        initial[pairing.id] = {
-          homeGame1: pairing.homeGame1,
-          homeGame2: pairing.homeGame2,
-          awayGame1: pairing.awayGame1,
-          awayGame2: pairing.awayGame2,
-        };
-      }
-    }
-    return initial;
+  const roundScores = rounds.map((round) => {
+    const homeHandicapTotal = round.cards.reduce((sum, c) => sum + c.homeHandicap, 0);
+    const awayHandicapTotal = round.cards.reduce((sum, c) => sum + c.awayHandicap, 0);
+    const scores = round.cards.map((c) => c.scores);
+    return {
+      ...calculateRoundScore(scores, homeHandicapTotal, awayHandicapTotal),
+      played: isRoundPlayed(scores),
+    };
   });
-  const [isPending, startTransition] = useTransition();
-  const [saved, setSaved] = useState(false);
-
-  function updateScore(pairingId: string, field: keyof PairingScore, value: string) {
-    const numeric = value === "" ? 0 : Number(value);
-    setScores((prev) => ({
-      ...prev,
-      [pairingId]: { ...(prev[pairingId] ?? emptyScores), [field]: numeric },
-    }));
-    setSaved(false);
-  }
-
-  const roundScores = useMemo(
-    () =>
-      rounds.map((round) => {
-        const homeHandicapTotal = round.pairings.reduce((sum, p) => sum + p.homePlayer.rating, 0);
-        const awayHandicapTotal = round.pairings.reduce((sum, p) => sum + p.awayPlayer.rating, 0);
-        const pairingScores = round.pairings.map((p) => scores[p.id] ?? emptyScores);
-        return {
-          ...calculateRoundScore(pairingScores, homeHandicapTotal, awayHandicapTotal),
-          played: isRoundPlayed(pairingScores),
-        };
-      }),
-    [rounds, scores]
-  );
 
   // Rounds nobody has scored yet don't count toward the match total, or the
   // handicap bonus alone would put points on the board before anyone plays.
   const playedRounds = roundScores.filter((r) => r.played);
   const matchHomeTotal = playedRounds.reduce((sum, r) => sum + r.home.roundTotal, 0);
   const matchAwayTotal = playedRounds.reduce((sum, r) => sum + r.away.roundTotal, 0);
-
-  function handleSave() {
-    const updates: PairingScoreUpdate[] = rounds.flatMap((round) =>
-      round.pairings.map((p) => ({ pairingId: p.id, ...(scores[p.id] ?? emptyScores) }))
-    );
-    startTransition(async () => {
-      await saveMatchScores(leagueId, matchId, updates);
-      setSaved(true);
-    });
-  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -115,51 +48,20 @@ export default function MatchScoreSheet({
 
       {rounds.map((round, i) => {
         const score = roundScores[i];
-
         return (
           <div key={round.id} className="flex flex-col gap-3 rounded-lg border p-4">
             <h2 className="font-semibold">Round {round.roundNumber}</h2>
-
             <div className="flex flex-col gap-2">
-              {round.pairings.map((pairing) => {
-                const s = scores[pairing.id] ?? emptyScores;
-                return (
-                  <div key={pairing.id} className="grid grid-cols-2 items-center gap-2 text-sm">
-                    <div className="col-span-2 font-medium">
-                      {pairing.homePlayer.name} <span className="text-neutral-400">vs</span>{" "}
-                      {pairing.awayPlayer.name}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <span className="w-20 text-neutral-500">{pairing.homePlayer.name}</span>
-                      <ScoreInput
-                        value={s.homeGame1}
-                        readOnly={!canEdit}
-                        onChange={(v) => updateScore(pairing.id, "homeGame1", v)}
-                      />
-                      <ScoreInput
-                        value={s.homeGame2}
-                        readOnly={!canEdit}
-                        onChange={(v) => updateScore(pairing.id, "homeGame2", v)}
-                      />
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <span className="w-20 text-neutral-500">{pairing.awayPlayer.name}</span>
-                      <ScoreInput
-                        value={s.awayGame1}
-                        readOnly={!canEdit}
-                        onChange={(v) => updateScore(pairing.id, "awayGame1", v)}
-                      />
-                      <ScoreInput
-                        value={s.awayGame2}
-                        readOnly={!canEdit}
-                        onChange={(v) => updateScore(pairing.id, "awayGame2", v)}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+              {round.cards.map((card) => (
+                <ScoreCard
+                  key={`${card.id}:${card.version}`}
+                  card={card}
+                  leagueId={leagueId}
+                  matchId={matchId}
+                  isManager={isManager}
+                />
+              ))}
             </div>
-
             <div className="grid grid-cols-2 gap-4 border-t pt-3 text-sm">
               <RoundSummary label={homeTeamName} team={score.home} played={score.played} />
               <RoundSummary label={awayTeamName} team={score.away} played={score.played} />
@@ -168,44 +70,11 @@ export default function MatchScoreSheet({
         );
       })}
 
-      {canEdit && (
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleSave}
-            disabled={isPending}
-            className="rounded-md bg-neutral-900 px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
-          >
-            {isPending ? "Saving…" : "Save Scores"}
-          </button>
-          {saved && <span className="text-sm text-green-600">Saved.</span>}
-        </div>
-      )}
+      <p className="text-xs text-neutral-500">
+        After both games at your table, tap <span className="font-medium">Enter score</span>; the
+        other player confirms it. A circled score is an ERO.
+      </p>
     </div>
-  );
-}
-
-function ScoreInput({
-  value,
-  readOnly,
-  onChange,
-}: {
-  value: number;
-  readOnly: boolean;
-  onChange: (v: string) => void;
-}) {
-  if (readOnly) {
-    return <span className="w-14 px-2 py-1 text-center tabular-nums">{value}</span>;
-  }
-
-  return (
-    <input
-      type="number"
-      inputMode="decimal"
-      value={value === 0 ? "" : value}
-      placeholder="0"
-      onChange={(e) => onChange(e.target.value)}
-      className="w-14 rounded-md border px-2 py-1 text-center"
-    />
   );
 }
 
