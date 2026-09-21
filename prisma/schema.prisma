@@ -95,6 +95,9 @@ model Pairing {
   id           String @id @default(cuid())
   round        Round  @relation(fields: [roundId], references: [id], onDelete: Cascade)
   roundId      String
+  // Which table this is, 1..N, matching the lineup order. The score sheet
+  // lists tables in this order, so it has to be stored, not inferred.
+  tableNumber  Int    @default(1)
   homePlayer   Player @relation("HomePlayer", fields: [homePlayerId], references: [id], onDelete: Cascade)
   homePlayerId String
   awayPlayer   Player @relation("AwayPlayer", fields: [awayPlayerId], references: [id], onDelete: Cascade)

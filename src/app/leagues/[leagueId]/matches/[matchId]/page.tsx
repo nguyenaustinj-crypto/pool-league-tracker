@@ -10,8 +10,8 @@ import {
   formatCardScores,
   type CardScores,
 } from "@/lib/score-entry";
+import type { CardView } from "./card-view";
 import MatchScoreSheet from "./MatchScoreSheet";
-import type { CardView } from "./ScoreCard";
 
 export default async function MatchPage({
   params,
@@ -33,6 +33,7 @@ export default async function MatchPage({
         orderBy: { roundNumber: "asc" },
         include: {
           pairings: {
+            orderBy: { tableNumber: "asc" },
             include: {
               homePlayer: true,
               awayPlayer: true,
@@ -76,6 +77,7 @@ export default async function MatchPage({
       const otherSide = p.enteredById === homeUserId ? p.awayPlayer : p.homePlayer;
       return {
         id: p.id,
+        tableNumber: p.tableNumber,
         version: p.version,
         status: p.status,
         homeName: p.homePlayer.name,

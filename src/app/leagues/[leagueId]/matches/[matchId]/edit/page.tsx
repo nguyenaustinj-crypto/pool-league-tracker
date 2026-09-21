@@ -21,7 +21,12 @@ export default async function EditMatchPage({
       awayTeam: true,
       rounds: {
         orderBy: { roundNumber: "asc" },
-        include: { pairings: { include: { homePlayer: true, awayPlayer: true } } },
+        include: {
+          pairings: {
+            orderBy: { tableNumber: "asc" },
+            include: { homePlayer: true, awayPlayer: true },
+          },
+        },
       },
     },
   });

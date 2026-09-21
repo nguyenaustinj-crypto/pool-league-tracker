@@ -245,6 +245,7 @@ function roundsCreateData(
         create: homePlayerIds.map((homePlayerId, homeIndex) => {
           const awayPlayerId = awayPlayerIds[awayIndexForRound(homeIndex, roundIndex, tableCount)];
           return {
+            tableNumber: homeIndex + 1,
             homePlayerId,
             awayPlayerId,
             ...preserved?.get(pairingKey(roundNumber, homePlayerId, awayPlayerId)),

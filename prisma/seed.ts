@@ -45,6 +45,7 @@ async function createMatch(opts: {
                 [0, 0],
               ];
               return {
+                tableNumber: homeIndex + 1,
                 homePlayerId,
                 awayPlayerId: opts.awayPlayerIds[awayIndexForRound(homeIndex, roundIndex, tableCount)],
                 homeGame1: game1[0],
