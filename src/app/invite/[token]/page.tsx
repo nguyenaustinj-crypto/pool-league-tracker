@@ -58,14 +58,20 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
       <p className="text-neutral-600">
         {asManager
           ? "as a manager: you'll be able to change rosters, matches, and scores, and let people in."
-          : "as a player: you'll be able to see the league's standings, teams, and scores."}
+          : invite.playerName
+            ? `as ${invite.playerName}: you'll see the league's standings and scores, and enter the scores for your own table.`
+            : "as a player: you'll be able to see the league's standings, teams, and scores."}
       </p>
       <form action={acceptInvite.bind(null, token)}>
         <button
           type="submit"
           className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white"
         >
-          {asManager ? "Become a manager" : "Join the league"}
+          {asManager
+            ? "Become a manager"
+            : invite.playerName
+              ? `Join as ${invite.playerName}`
+              : "Join the league"}
         </button>
       </form>
     </div>

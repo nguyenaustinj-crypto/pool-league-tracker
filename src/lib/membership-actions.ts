@@ -237,6 +237,31 @@ export async function acceptInvite(token: string) {
       // Prisma Postgres is remote; the default transaction timeouts are tight.
       { maxWait: 10_000, timeout: 20_000 }
     );
+  } else if (invite.playerId) {
+    // A link for one roster name: join, and take that name.
+    const alreadyNamed = await prisma.player.findFirst({
+      where: { userId: user.id, team: { leagueId } },
+      select: { name: true },
+    });
+    if (alreadyNamed) throw new Error(`You're already ${alreadyNamed.name} in this league.`);
+
+    await prisma.$transaction(
+      async (tx) => {
+        const claimed = await tx.player.updateMany({
+          where: { id: invite.playerId!, userId: null },
+          data: { userId: user.id, inviteToken: null },
+        });
+        if (claimed.count !== 1) {
+          throw new Error("Someone already took that name. Ask a league manager for a new link.");
+        }
+        await tx.leagueMembership.upsert({
+          where: { leagueId_userId: { leagueId, userId: user.id } },
+          create: { leagueId, userId: user.id, role: "PLAYER" },
+          update: {},
+        });
+      },
+      { maxWait: 10_000, timeout: 20_000 }
+    );
   } else {
     await prisma.leagueMembership.upsert({
       where: { leagueId_userId: { leagueId, userId: user.id } },

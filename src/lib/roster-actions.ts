@@ -3,12 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { getLeagueAccess, requireLeagueManager, requireSignedIn } from "@/lib/access";
 import { redirectToLogin } from "@/lib/editor";
+import { newInviteToken } from "@/lib/invite-token";
 import { prisma } from "@/lib/prisma";
 
-// Linking accounts to roster names (Player.userId). A member claims their own
-// name in one tap; a manager can link or unlink anyone. An account is at most
-// one roster name per league, and a name belongs to at most one account.
-// The link is what lets a player enter the scores for their own table.
+// Linking accounts to roster names (Player.userId). A manager types a roster
+// in, then either hands each player their own invite link (Player.inviteToken,
+// which joins the league and takes that name), or people claim their own name
+// in one tap. An account is at most one roster name per league, and a name
+// belongs to at most one account. The link is what lets a player enter the
+// scores for their own table.
 
 async function playerInLeague(leagueId: string, playerId: string) {
   const player = await prisma.player.findUnique({
@@ -48,9 +51,10 @@ export async function claimPlayer(leagueId: string, playerId: string) {
   }
 
   // Only claims a name that's still free, even if two people tap at once.
+  // Taking the name also kills its invite link.
   await prisma.player.updateMany({
     where: { id: playerId, userId: null },
-    data: { userId: user.id },
+    data: { userId: user.id, inviteToken: null },
   });
   revalidateLeague(leagueId);
 }
@@ -87,6 +91,27 @@ export async function linkMemberToPlayer(leagueId: string, userId: string, formD
     throw new Error(`They're already linked to ${existing.name}. Unlink that first.`);
   }
 
-  await prisma.player.update({ where: { id: player.id }, data: { userId } });
+  await prisma.player.update({
+    where: { id: player.id },
+    data: { userId, inviteToken: null },
+  });
+  revalidateLeague(leagueId);
+}
+
+/**
+ * Creates (or replaces) the share link for one roster name, so a manager can
+ * send each player a link that joins the league as that exact person.
+ */
+export async function createPlayerInvite(leagueId: string, playerId: string) {
+  await requireLeagueManager(leagueId);
+  const player = await playerInLeague(leagueId, playerId);
+  if (player.userId) {
+    throw new Error(`${player.name} is already linked to an account.`);
+  }
+
+  await prisma.player.update({
+    where: { id: playerId },
+    data: { inviteToken: newInviteToken() },
+  });
   revalidateLeague(leagueId);
 }

@@ -2,7 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireLeagueView } from "@/lib/access";
 import { createPlayer, updateTeam, deleteTeam } from "@/lib/actions";
+import { siteOrigin } from "@/lib/invites";
 import { prisma } from "@/lib/prisma";
+import PlayerInvite from "./PlayerInvite";
 
 export default async function TeamPage({
   params,
@@ -22,6 +24,7 @@ export default async function TeamPage({
   const matchCount = await prisma.match.count({
     where: { OR: [{ homeTeamId: teamId }, { awayTeamId: teamId }] },
   });
+  const origin = await siteOrigin();
 
   const createPlayerOnTeam = createPlayer.bind(null, leagueId, teamId);
   const updateThisTeam = updateTeam.bind(null, leagueId, teamId);
@@ -46,29 +49,40 @@ export default async function TeamPage({
         <h2 className="font-semibold">Players</h2>
         <ul className="flex flex-col gap-2">
           {team.players.map((player) => (
-            <li
-              key={player.id}
-              className="flex items-center justify-between rounded-lg border p-3"
-            >
-              <span>
-                {player.name}
-                {access.user && player.userId === access.user.id && (
-                  <span className="ml-2 rounded bg-neutral-900 px-1.5 py-0.5 text-xs font-medium text-white">
-                    You
-                  </span>
-                )}
-              </span>
-              <span className="flex items-center gap-3 text-sm text-neutral-500">
-                Handicap {player.rating}
-                {canEdit && (
-                  <Link
-                    href={`/leagues/${leagueId}/players/${player.id}/edit`}
-                    className="underline"
-                  >
-                    Edit
-                  </Link>
-                )}
-              </span>
+            <li key={player.id} className="flex flex-col gap-2 rounded-lg border p-3">
+              <div className="flex items-center justify-between gap-3">
+                <span className="min-w-0">
+                  {player.name}
+                  {access.user && player.userId === access.user.id && (
+                    <span className="ml-2 rounded bg-neutral-900 px-1.5 py-0.5 text-xs font-medium text-white">
+                      You
+                    </span>
+                  )}
+                  {canEdit && player.userId && player.userId !== access.user?.id && (
+                    <span className="ml-2 text-xs text-neutral-500">account linked</span>
+                  )}
+                </span>
+                <span className="flex shrink-0 items-center gap-3 text-sm text-neutral-500">
+                  Handicap {player.rating}
+                  {canEdit && (
+                    <Link
+                      href={`/leagues/${leagueId}/players/${player.id}/edit`}
+                      className="underline"
+                    >
+                      Edit
+                    </Link>
+                  )}
+                </span>
+              </div>
+              {canEdit && !player.userId && (
+                <PlayerInvite
+                  leagueId={leagueId}
+                  leagueName={team.league.name}
+                  playerId={player.id}
+                  playerName={player.name}
+                  inviteUrl={player.inviteToken ? `${origin}/invite/${player.inviteToken}` : null}
+                />
+              )}
             </li>
           ))}
           {team.players.length === 0 && (

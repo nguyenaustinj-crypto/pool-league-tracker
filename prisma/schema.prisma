@@ -49,6 +49,10 @@ model Player {
   // scores for their own table.
   user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
   userId String?
+  // A share link for this one roster name (/invite/<inviteToken>): whoever
+  // opens it joins the league and takes this name. Cleared once the name is
+  // taken, so a forwarded link can't be used by someone else.
+  inviteToken String? @unique
 
   homePairings Pairing[] @relation("HomePlayer")
   awayPairings Pairing[] @relation("AwayPlayer")
