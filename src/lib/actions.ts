@@ -212,6 +212,10 @@ async function validateLineup(
       throw new Error(`${player.name} isn't on that side's team.`);
     }
   }
+
+  // Each player's handicap right now, copied onto the match's cards so
+  // later changes to the roster don't rewrite it.
+  return new Map(players.map((player) => [player.id, player.rating]));
 }
 
 // Keyed by `${roundNumber}:${homePlayerId}:${awayPlayerId}` so a table-count
@@ -234,6 +238,7 @@ function pairingKey(roundNumber: number, homePlayerId: string, awayPlayerId: str
 function roundsCreateData(
   homePlayerIds: string[],
   awayPlayerIds: string[],
+  handicaps: Map<string, number>,
   preserved?: PreservedScores
 ) {
   const tableCount = homePlayerIds.length;
@@ -248,6 +253,8 @@ function roundsCreateData(
             tableNumber: homeIndex + 1,
             homePlayerId,
             awayPlayerId,
+            homeHandicap: handicaps.get(homePlayerId) ?? 0,
+            awayHandicap: handicaps.get(awayPlayerId) ?? 0,
             ...preserved?.get(pairingKey(roundNumber, homePlayerId, awayPlayerId)),
           };
         }),
@@ -264,14 +271,20 @@ export async function createMatch(leagueId: string, formData: FormData) {
   const homePlayerIds = formData.getAll("homePlayerIds").map(String);
   const awayPlayerIds = formData.getAll("awayPlayerIds").map(String);
 
-  await validateLineup(leagueId, homeTeamId, awayTeamId, homePlayerIds, awayPlayerIds);
+  const handicaps = await validateLineup(
+    leagueId,
+    homeTeamId,
+    awayTeamId,
+    homePlayerIds,
+    awayPlayerIds
+  );
 
   const match = await prisma.match.create({
     data: {
       leagueId,
       homeTeamId,
       awayTeamId,
-      rounds: { create: roundsCreateData(homePlayerIds, awayPlayerIds) },
+      rounds: { create: roundsCreateData(homePlayerIds, awayPlayerIds, handicaps) },
     },
   });
 
@@ -294,7 +307,13 @@ export async function updateMatch(leagueId: string, matchId: string, formData: F
   const homePlayerIds = formData.getAll("homePlayerIds").map(String);
   const awayPlayerIds = formData.getAll("awayPlayerIds").map(String);
 
-  await validateLineup(leagueId, homeTeamId, awayTeamId, homePlayerIds, awayPlayerIds);
+  const handicaps = await validateLineup(
+    leagueId,
+    homeTeamId,
+    awayTeamId,
+    homePlayerIds,
+    awayPlayerIds
+  );
 
   // The edit form always submits a full lineup (pre-checked with the
   // current one), so only regenerate Rounds/Pairings if the teams, lineup,
@@ -340,7 +359,7 @@ export async function updateMatch(leagueId: string, matchId: string, formData: F
         ...(dateValue ? { date: new Date(dateValue) } : {}),
         homeTeamId,
         awayTeamId,
-        rounds: { create: roundsCreateData(homePlayerIds, awayPlayerIds, preserved) },
+        rounds: { create: roundsCreateData(homePlayerIds, awayPlayerIds, handicaps, preserved) },
       },
     });
   } else {

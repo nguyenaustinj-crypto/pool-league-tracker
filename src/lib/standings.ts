@@ -15,10 +15,10 @@ export interface TeamStanding {
 }
 
 interface RoundForStandings {
-  pairings: (PairingScore & {
-    homePlayer: { rating: number };
-    awayPlayer: { rating: number };
-  })[];
+  // Handicaps come from each card (the player's handicap for that match),
+  // not from the roster, so changing someone's handicap now doesn't rewrite
+  // matches already played.
+  pairings: (PairingScore & { homeHandicap: number; awayHandicap: number })[];
 }
 
 interface MatchForStandings {
@@ -49,8 +49,8 @@ export function calculateStandings(
       // bonus favors.
       if (!isRoundPlayed(round.pairings)) continue;
 
-      const homeHandicapTotal = round.pairings.reduce((sum, p) => sum + p.homePlayer.rating, 0);
-      const awayHandicapTotal = round.pairings.reduce((sum, p) => sum + p.awayPlayer.rating, 0);
+      const homeHandicapTotal = round.pairings.reduce((sum, p) => sum + p.homeHandicap, 0);
+      const awayHandicapTotal = round.pairings.reduce((sum, p) => sum + p.awayHandicap, 0);
       const score = calculateRoundScore(round.pairings, homeHandicapTotal, awayHandicapTotal);
 
       home.points += score.home.roundTotal;

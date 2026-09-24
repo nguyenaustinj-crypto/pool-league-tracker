@@ -106,6 +106,12 @@ model Pairing {
   homePlayerId String
   awayPlayer   Player @relation("AwayPlayer", fields: [awayPlayerId], references: [id], onDelete: Cascade)
   awayPlayerId String
+  // Each player's handicap *for this match*, copied from their roster
+  // handicap when the match is created and adjustable by a manager at the
+  // start of it. Scoring reads these, never Player.rating, so correcting a
+  // player's handicap today doesn't rewrite matches already played.
+  homeHandicap Float  @default(0)
+  awayHandicap Float  @default(0)
   homeGame1    Float  @default(0)
   homeGame2    Float  @default(0)
   awayGame1    Float  @default(0)

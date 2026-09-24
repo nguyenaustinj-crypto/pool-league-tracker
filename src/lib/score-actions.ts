@@ -168,6 +168,58 @@ export async function confirmScoreCard(
   return confirmed ? { ok: true } : { ok: false, message: STALE, stale: true };
 }
 
+/**
+ * Sets each player's handicap for this match, at the start of it. Managers
+ * only. Also updates their roster handicap, so it's the starting point for
+ * the next match; matches already played keep the handicaps they were
+ * scored with.
+ */
+export async function setMatchHandicaps(leagueId: string, matchId: string, formData: FormData) {
+  await requireLeagueManager(leagueId);
+  const match = await prisma.match.findUnique({
+    where: { id: matchId },
+    select: { leagueId: true, lockedAt: true },
+  });
+  if (!match || match.leagueId !== leagueId) throw new Error("That match isn't in this league.");
+  if (match.lockedAt) throw new Error("This match is locked. Unlock it to change handicaps.");
+
+  // Only the players actually in this match, whatever the form says.
+  const cards = await prisma.pairing.findMany({
+    where: { round: { matchId } },
+    select: { homePlayerId: true, awayPlayerId: true },
+  });
+  const inMatch = new Set(cards.flatMap((c) => [c.homePlayerId, c.awayPlayerId]));
+
+  const updates: { playerId: string; handicap: number }[] = [];
+  for (const [key, value] of formData.entries()) {
+    if (!key.startsWith("handicap_")) continue;
+    const playerId = key.slice("handicap_".length);
+    if (!inMatch.has(playerId)) throw new Error("That player isn't in this match.");
+    const handicap = Number(value);
+    if (!Number.isFinite(handicap) || handicap < 0 || handicap > 20) {
+      throw new Error("Handicaps are between 0 and 20.");
+    }
+    updates.push({ playerId, handicap: Math.round(handicap * 10) / 10 });
+  }
+  if (updates.length === 0) return;
+
+  await prisma.$transaction(
+    updates.flatMap((u) => [
+      prisma.pairing.updateMany({
+        where: { round: { matchId }, homePlayerId: u.playerId },
+        data: { homeHandicap: u.handicap },
+      }),
+      prisma.pairing.updateMany({
+        where: { round: { matchId }, awayPlayerId: u.playerId },
+        data: { awayHandicap: u.handicap },
+      }),
+      prisma.player.update({ where: { id: u.playerId }, data: { rating: u.handicap } }),
+    ]),
+    { maxWait: 10_000, timeout: 20_000 }
+  );
+  revalidateMatch(leagueId, matchId);
+}
+
 /** Locking a finished match leaves its scores to managers only. */
 export async function setMatchLock(leagueId: string, matchId: string, locked: boolean) {
   const access = await requireLeagueManager(leagueId);

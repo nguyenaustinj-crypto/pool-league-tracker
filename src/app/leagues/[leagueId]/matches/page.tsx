@@ -24,7 +24,7 @@ export default async function LeagueMatchesPage({
     include: {
       homeTeam: true,
       awayTeam: true,
-      rounds: { include: { pairings: { include: { homePlayer: true, awayPlayer: true } } } },
+      rounds: { include: { pairings: true } },
     },
   });
 
@@ -52,14 +52,8 @@ export default async function LeagueMatchesPage({
               // Unscored rounds don't count; the handicap bonus alone would
               // otherwise put points on the board before anyone plays.
               if (!isRoundPlayed(round.pairings)) continue;
-              const homeHandicapTotal = round.pairings.reduce(
-                (sum, p) => sum + p.homePlayer.rating,
-                0
-              );
-              const awayHandicapTotal = round.pairings.reduce(
-                (sum, p) => sum + p.awayPlayer.rating,
-                0
-              );
+              const homeHandicapTotal = round.pairings.reduce((sum, p) => sum + p.homeHandicap, 0);
+              const awayHandicapTotal = round.pairings.reduce((sum, p) => sum + p.awayHandicap, 0);
               const score = calculateRoundScore(round.pairings, homeHandicapTotal, awayHandicapTotal);
               homeTotal += score.home.roundTotal;
               awayTotal += score.away.roundTotal;

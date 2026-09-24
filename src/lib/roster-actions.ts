@@ -99,6 +99,52 @@ export async function linkMemberToPlayer(leagueId: string, userId: string, formD
 }
 
 /**
+ * Fixes the name everyone sees for you, e.g. when a manager typed it wrong
+ * before sending your invite. Only your own name; managers can edit anyone's
+ * from the player's edit page.
+ */
+export async function renameMyPlayer(leagueId: string, playerId: string, formData: FormData) {
+  const user = await requireSignedIn();
+  const player = await playerInLeague(leagueId, playerId);
+  if (player.userId !== user.id) throw new Error("You can only change your own name.");
+
+  const name = String(formData.get("name") ?? "").trim().slice(0, 60);
+  if (!name) return;
+
+  await prisma.player.update({ where: { id: playerId }, data: { name } });
+  revalidateLeague(leagueId);
+}
+
+/**
+ * "I'm not on the list": a member adds themselves to a team's roster, for
+ * when the manager hasn't typed their name in (or typed someone else's).
+ */
+export async function addMeAsPlayer(leagueId: string, formData: FormData) {
+  const user = await requireSignedIn();
+  const access = await getLeagueAccess(leagueId);
+  if (!access.role) throw new Error("Join the league before adding yourself to a team.");
+
+  const existing = await linkedPlayerIn(leagueId, user.id);
+  if (existing) throw new Error(`You're already ${existing.name} in this league.`);
+
+  const teamId = String(formData.get("teamId") ?? "");
+  const team = await prisma.team.findUnique({ where: { id: teamId }, select: { leagueId: true } });
+  if (!team || team.leagueId !== leagueId) throw new Error("Pick one of this league's teams.");
+
+  const name = String(formData.get("name") ?? "").trim().slice(0, 60) || user.name;
+  const entered = Number(formData.get("rating"));
+  // A manager sets the real handicap at the start of each match; this is
+  // just a starting point.
+  const handicap =
+    Number.isFinite(entered) && entered >= 0 && entered <= 20
+      ? Math.round(entered * 10) / 10
+      : 5;
+
+  await prisma.player.create({ data: { name, rating: handicap, teamId, userId: user.id } });
+  revalidateLeague(leagueId);
+}
+
+/**
  * Creates (or replaces) the share link for one roster name, so a manager can
  * send each player a link that joins the league as that exact person.
  */

@@ -19,7 +19,7 @@ const TEAMS = [
   { id: "away", name: "Away Team" },
 ];
 
-/** One table, both players on equal handicaps, so bonus is 0. */
+/** One table, both players on equal handicaps for this match, so bonus is 0. */
 function round(homeScore: number, awayScore: number) {
   return {
     pairings: [
@@ -28,8 +28,8 @@ function round(homeScore: number, awayScore: number) {
         homeGame2: 0,
         awayGame1: awayScore,
         awayGame2: 0,
-        homePlayer: { rating: 5 },
-        awayPlayer: { rating: 5 },
+        homeHandicap: 5,
+        awayHandicap: 5,
       },
     ],
   };
@@ -144,8 +144,8 @@ describe("calculateStandings", () => {
                 homeGame2: 0,
                 awayGame1: 4,
                 awayGame2: 0,
-                homePlayer: { rating: 24 },
-                awayPlayer: { rating: 23 },
+                homeHandicap: 24,
+                awayHandicap: 23,
               },
             ],
           },
@@ -170,8 +170,8 @@ describe("calculateStandings", () => {
           homeGame2: 0,
           awayGame1: 0,
           awayGame2: 0,
-          homePlayer: { rating: 24 },
-          awayPlayer: { rating: 23 },
+          homeHandicap: 24,
+          awayHandicap: 23,
         },
       ],
     };

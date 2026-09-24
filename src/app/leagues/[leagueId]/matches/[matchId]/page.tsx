@@ -11,6 +11,7 @@ import {
   type CardScores,
 } from "@/lib/score-entry";
 import type { CardView } from "./card-view";
+import MatchHandicaps from "./MatchHandicaps";
 import MatchScoreSheet from "./MatchScoreSheet";
 
 export default async function MatchPage({
@@ -65,6 +66,22 @@ export default async function MatchPage({
 
   const locked = match.lockedAt !== null;
   const unconfirmed = pairings.filter((p) => p.status === "ENTERED").length;
+  const anyScores = pairings.some((p) => p.status !== "EMPTY");
+
+  // Round 1 is the lineup: table i is home[i] against away[i].
+  const firstRound = match.rounds[0];
+  const homeLineup =
+    firstRound?.pairings.map((p) => ({
+      id: p.homePlayerId,
+      name: p.homePlayer.name,
+      handicap: p.homeHandicap,
+    })) ?? [];
+  const awayLineup =
+    firstRound?.pairings.map((p) => ({
+      id: p.awayPlayerId,
+      name: p.awayPlayer.name,
+      handicap: p.awayHandicap,
+    })) ?? [];
 
   const rounds = match.rounds.map((round) => ({
     id: round.id,
@@ -82,8 +99,8 @@ export default async function MatchPage({
         status: p.status,
         homeName: p.homePlayer.name,
         awayName: p.awayPlayer.name,
-        homeHandicap: p.homePlayer.rating,
-        awayHandicap: p.awayPlayer.rating,
+        homeHandicap: p.homeHandicap,
+        awayHandicap: p.awayHandicap,
         isMine: viewerUserId !== null && (viewerUserId === homeUserId || viewerUserId === awayUserId),
         scores: cardScoresOf(p),
         enteredByName: p.enteredById ? nameOf(p.enteredById) : null,
@@ -160,6 +177,18 @@ export default async function MatchPage({
             </form>
           )}
         </div>
+      )}
+
+      {isManager && !locked && (
+        <MatchHandicaps
+          leagueId={leagueId}
+          matchId={matchId}
+          homeTeamName={homeTeamName}
+          awayTeamName={awayTeamName}
+          home={homeLineup}
+          away={awayLineup}
+          anyScores={anyScores}
+        />
       )}
 
       <MatchScoreSheet
