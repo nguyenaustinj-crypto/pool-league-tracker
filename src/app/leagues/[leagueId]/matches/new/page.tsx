@@ -49,7 +49,11 @@ export default async function NewMatchPage({
         </Link>
       </p>
       <h1 className="text-xl font-bold">New Match</h1>
-      <NewMatchForm leagueId={league.id} teams={teams} />
+      <NewMatchForm
+        leagueId={league.id}
+        teams={teams}
+        defaultDate={new Date().toISOString().slice(0, 10)}
+      />
     </div>
   );
 }

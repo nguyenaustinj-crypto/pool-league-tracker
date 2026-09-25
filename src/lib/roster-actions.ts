@@ -32,6 +32,8 @@ function linkedPlayerIn(leagueId: string, userId: string) {
 }
 
 function revalidateLeague(leagueId: string) {
+  // Which roster name is yours decides your record on the home page.
+  revalidatePath("/");
   revalidatePath(`/leagues/${leagueId}`, "layout");
 }
 

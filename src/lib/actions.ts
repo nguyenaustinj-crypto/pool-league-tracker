@@ -235,6 +235,18 @@ function pairingKey(roundNumber: number, homePlayerId: string, awayPlayerId: str
   return `${roundNumber}:${homePlayerId}:${awayPlayerId}`;
 }
 
+/**
+ * A match's date as the form sends it ("2026-09-25"), or nothing at all if
+ * it's missing or junk -- these actions take direct POSTs, and an unparseable
+ * date would otherwise reach the database.
+ */
+function matchDateFrom(formData: FormData): { date: Date } | Record<string, never> {
+  const value = String(formData.get("date") ?? "");
+  if (!value) return {};
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? {} : { date };
+}
+
 function roundsCreateData(
   homePlayerIds: string[],
   awayPlayerIds: string[],
@@ -266,6 +278,7 @@ function roundsCreateData(
 export async function createMatch(leagueId: string, formData: FormData) {
   await requireLeagueManager(leagueId);
 
+  const matchDate = matchDateFrom(formData);
   const homeTeamId = String(formData.get("homeTeamId") ?? "");
   const awayTeamId = String(formData.get("awayTeamId") ?? "");
   const homePlayerIds = formData.getAll("homePlayerIds").map(String);
@@ -282,12 +295,17 @@ export async function createMatch(leagueId: string, formData: FormData) {
   const match = await prisma.match.create({
     data: {
       leagueId,
+      // A date picked ahead of time puts the match on the schedule; without
+      // one it's today's match, which is what the form fills in.
+      ...matchDate,
       homeTeamId,
       awayTeamId,
       rounds: { create: roundsCreateData(homePlayerIds, awayPlayerIds, handicaps) },
     },
   });
 
+  // The home page lists what's coming up, so it changes with every match.
+  revalidatePath("/");
   revalidatePath(`/leagues/${leagueId}`);
   revalidatePath(`/leagues/${leagueId}/matches`);
   redirect(`/leagues/${leagueId}/matches/${match.id}`);
@@ -301,7 +319,7 @@ export async function updateMatch(leagueId: string, matchId: string, formData: F
   await requireLeagueManager(leagueId);
   const currentMatch = await matchInLeague(leagueId, matchId);
 
-  const dateValue = String(formData.get("date") ?? "");
+  const matchDate = matchDateFrom(formData);
   const homeTeamId = String(formData.get("homeTeamId") ?? "");
   const awayTeamId = String(formData.get("awayTeamId") ?? "");
   const homePlayerIds = formData.getAll("homePlayerIds").map(String);
@@ -356,7 +374,7 @@ export async function updateMatch(leagueId: string, matchId: string, formData: F
     await prisma.match.update({
       where: { id: matchId },
       data: {
-        ...(dateValue ? { date: new Date(dateValue) } : {}),
+        ...matchDate,
         homeTeamId,
         awayTeamId,
         rounds: { create: roundsCreateData(homePlayerIds, awayPlayerIds, handicaps, preserved) },
@@ -366,13 +384,14 @@ export async function updateMatch(leagueId: string, matchId: string, formData: F
     await prisma.match.update({
       where: { id: matchId },
       data: {
-        ...(dateValue ? { date: new Date(dateValue) } : {}),
+        ...matchDate,
         homeTeamId,
         awayTeamId,
       },
     });
   }
 
+  revalidatePath("/");
   revalidatePath(`/leagues/${leagueId}`);
   revalidatePath(`/leagues/${leagueId}/matches`);
   revalidatePath(`/leagues/${leagueId}/matches/${matchId}`);
@@ -384,6 +403,7 @@ export async function deleteMatch(leagueId: string, matchId: string) {
   await matchInLeague(leagueId, matchId);
 
   await prisma.match.delete({ where: { id: matchId } });
+  revalidatePath("/");
   revalidatePath(`/leagues/${leagueId}`);
   revalidatePath(`/leagues/${leagueId}/matches`);
   redirect(`/leagues/${leagueId}/matches`);

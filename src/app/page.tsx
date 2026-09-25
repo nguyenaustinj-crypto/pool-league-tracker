@@ -4,10 +4,17 @@ import LeagueSearchForm from "@/components/LeagueSearchForm";
 import { createLeague } from "@/lib/actions";
 import { signInConfigured } from "@/lib/auth";
 import { editorPasscode, isSiteAdmin } from "@/lib/editor";
+import { calculatePlayerStats } from "@/lib/player-stats";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
+import { homePageCutoff, matchAhead } from "@/lib/upcoming-matches";
+import ComingUp, { type ComingUpMatch } from "./ComingUp";
+import MyStats, { type MyStatsLeague } from "./MyStats";
 
 const withCounts = { _count: { select: { teams: true, matches: true } } } as const;
+
+/** How many matches the home page lists before you go to a league's own list. */
+const COMING_UP_LIMIT = 5;
 
 export default async function HomePage() {
   const [user, siteAdmin] = await Promise.all([getCurrentUser(), isSiteAdmin()]);
@@ -28,6 +35,17 @@ export default async function HomePage() {
         orderBy: { name: "asc" },
       })
     : [];
+
+  const { comingUp, statsLeagues, unclaimed } = await homeForPlayer(
+    user?.id ?? null,
+    memberships.map((m) => ({
+      leagueId: m.leagueId,
+      leagueName: m.league.name,
+      // Site admins can manage any league, so they count as one here too.
+      isManager: m.role === "MANAGER" || siteAdmin,
+      hasTeams: m.league._count.teams > 0,
+    }))
+  );
 
   const findLeague = user && (
     <section className="flex flex-col gap-3">
@@ -95,6 +113,10 @@ export default async function HomePage() {
         )}
       </section>
 
+      <ComingUp matches={comingUp} />
+
+      <MyStats leagues={statsLeagues} unclaimed={unclaimed} />
+
       {/* With no leagues yet, finding one comes first. */}
       {memberships.length === 0 && findLeague}
 
@@ -119,6 +141,173 @@ export default async function HomePage() {
       {memberships.length > 0 && findLeague}
     </div>
   );
+}
+
+interface HomeMembership {
+  leagueId: string;
+  leagueName: string;
+  isManager: boolean;
+  hasTeams: boolean;
+}
+
+/**
+ * The two player-facing parts of the home page: what's coming up, and how
+ * you're doing. Both are read from the score cards themselves, so there's
+ * nothing extra to keep up to date.
+ */
+async function homeForPlayer(userId: string | null, memberships: HomeMembership[]) {
+  const empty = {
+    comingUp: [] as ComingUpMatch[],
+    statsLeagues: [] as MyStatsLeague[],
+    unclaimed: [] as { leagueId: string; leagueName: string }[],
+  };
+  if (!userId || memberships.length === 0) return empty;
+
+  const leagueIds = memberships.map((m) => m.leagueId);
+  const now = new Date();
+
+  // The roster name this person has claimed in each league -- at most one per
+  // league -- which is what makes a match "yours" and gives you a record.
+  const myPlayers = await prisma.player.findMany({
+    where: { userId, team: { leagueId: { in: leagueIds } } },
+    select: {
+      id: true,
+      name: true,
+      rating: true,
+      team: { select: { name: true, leagueId: true } },
+    },
+  });
+  const myPlayerInLeague = new Map(myPlayers.map((p) => [p.team.leagueId, p]));
+
+  const [matches, myPairings] = await Promise.all([
+    prisma.match.findMany({
+      where: {
+        leagueId: { in: leagueIds },
+        // Locked means finished; matchAhead() drops the rest of the old ones.
+        lockedAt: null,
+        date: { gte: homePageCutoff(now) },
+      },
+      orderBy: { date: "asc" },
+      select: {
+        id: true,
+        date: true,
+        lockedAt: true,
+        leagueId: true,
+        league: { select: { name: true } },
+        homeTeam: { select: { name: true } },
+        awayTeam: { select: { name: true } },
+        rounds: {
+          orderBy: { roundNumber: "asc" },
+          select: {
+            roundNumber: true,
+            pairings: {
+              select: {
+                tableNumber: true,
+                homePlayerId: true,
+                awayPlayerId: true,
+                homePlayer: { select: { userId: true } },
+                awayPlayer: { select: { userId: true } },
+                status: true,
+                enteredById: true,
+                homeGame1: true,
+                homeGame2: true,
+                awayGame1: true,
+                awayGame2: true,
+              },
+            },
+          },
+        },
+      },
+    }),
+    myPlayers.length > 0
+      ? prisma.pairing.findMany({
+          where: {
+            OR: [
+              { homePlayerId: { in: myPlayers.map((p) => p.id) } },
+              { awayPlayerId: { in: myPlayers.map((p) => p.id) } },
+            ],
+          },
+          select: {
+            homePlayerId: true,
+            awayPlayerId: true,
+            homeGame1: true,
+            homeGame2: true,
+            awayGame1: true,
+            awayGame2: true,
+            homeGame1Ero: true,
+            homeGame2Ero: true,
+            awayGame1Ero: true,
+            awayGame2Ero: true,
+            round: { select: { matchId: true } },
+          },
+        })
+      : [],
+  ]);
+
+  const showLeagueName = memberships.length > 1;
+  const membershipOf = new Map(memberships.map((m) => [m.leagueId, m]));
+  const comingUp: ComingUpMatch[] = [];
+  for (const match of matches) {
+    const membership = membershipOf.get(match.leagueId);
+    if (!membership) continue;
+
+    const ahead = matchAhead(
+      {
+        date: match.date,
+        lockedAt: match.lockedAt,
+        rounds: match.rounds.map((round) => ({
+          roundNumber: round.roundNumber,
+          pairings: round.pairings.map((p) => ({
+            ...p,
+            homeUserId: p.homePlayer.userId,
+            awayUserId: p.awayPlayer.userId,
+          })),
+        })),
+      },
+      {
+        playerId: myPlayerInLeague.get(match.leagueId)?.id ?? null,
+        userId,
+        isManager: membership.isManager,
+        now,
+      }
+    );
+    if (!ahead) continue;
+
+    comingUp.push({
+      id: match.id,
+      leagueId: match.leagueId,
+      leagueName: match.league.name,
+      homeTeamName: match.homeTeam.name,
+      awayTeamName: match.awayTeam.name,
+      date: match.date.toISOString(),
+      showLeagueName,
+      ...ahead,
+    });
+    if (comingUp.length === COMING_UP_LIMIT) break;
+  }
+
+  const pairingsForStats = myPairings.map((p) => ({ ...p, matchId: p.round.matchId }));
+  const statsLeagues: MyStatsLeague[] = memberships.flatMap((membership) => {
+    const player = myPlayerInLeague.get(membership.leagueId);
+    if (!player) return [];
+    return [
+      {
+        leagueId: membership.leagueId,
+        leagueName: membership.leagueName,
+        playerName: player.name,
+        teamName: player.team.name,
+        handicap: player.rating,
+        stats: calculatePlayerStats(player.id, pairingsForStats),
+      },
+    ];
+  });
+
+  // Nudge people to pick their name, but only where there's a roster to pick from.
+  const unclaimed = memberships
+    .filter((m) => m.hasTeams && !myPlayerInLeague.has(m.leagueId))
+    .map((m) => ({ leagueId: m.leagueId, leagueName: m.leagueName }));
+
+  return { comingUp, statsLeagues, unclaimed };
 }
 
 function LeagueRow({

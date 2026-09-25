@@ -15,7 +15,16 @@ interface Team {
   players: Player[];
 }
 
-export default function NewMatchForm({ leagueId, teams }: { leagueId: string; teams: Team[] }) {
+export default function NewMatchForm({
+  leagueId,
+  teams,
+  defaultDate,
+}: {
+  leagueId: string;
+  teams: Team[];
+  /** Today, so the usual case is one tap; a later date schedules the match ahead. */
+  defaultDate: string;
+}) {
   const createMatchInLeague = createMatch.bind(null, leagueId);
 
   const [homeTeamId, setHomeTeamId] = useState(teams[0]?.id ?? "");
@@ -79,6 +88,20 @@ export default function NewMatchForm({ leagueId, teams }: { leagueId: string; te
 
   return (
     <form action={createMatchInLeague} onSubmit={handleSubmit} className="flex flex-col gap-6">
+      <label className="flex flex-col gap-1 text-sm font-medium">
+        Date
+        <input
+          type="date"
+          name="date"
+          defaultValue={defaultDate}
+          required
+          className="rounded-md border px-3 py-2 font-normal"
+        />
+        <span className="text-xs font-normal text-neutral-500">
+          Set a later date to put a match on the schedule before it&apos;s played.
+        </span>
+      </label>
+
       <div className="grid grid-cols-2 gap-4">
         <label className="flex flex-col gap-1 text-sm font-medium">
           Home team

@@ -42,6 +42,9 @@ async function loadCard(leagueId: string, matchId: string, pairingId: string) {
 }
 
 function revalidateMatch(leagueId: string, matchId: string) {
+  // The home page shows what's still to play and each player's own record,
+  // both of which move as soon as a card is saved.
+  revalidatePath("/");
   revalidatePath(`/leagues/${leagueId}`);
   revalidatePath(`/leagues/${leagueId}/matches`);
   revalidatePath(`/leagues/${leagueId}/matches/${matchId}`);
